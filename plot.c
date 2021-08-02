@@ -74,10 +74,6 @@ float maxerr_sinf = 1.f; // large-enough start value to accept any contender
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 int scale_report[PDIM][2];
 
-#define A_TRY 100000 //100000
-#define B_TRY 1000  //10000
-#define C_TRY 100   //1000
-
 static int test_candidate(int pcoeffs[PDIM]) {
 	double try_scale_adj[PDIM];
 	float try_maxerr_sinf = 0.f;
@@ -120,9 +116,22 @@ static int test_candidate(int pcoeffs[PDIM]) {
 	return 1;
 }
 
-int main() {
+static void print_report(void) {
+	printf("Max.err. %e\n", maxerr_sinf);
+	for (int j = 0; j < PDIM; ++j) {
+		char label = 'A' + j;
+		printf("%c==%.11f\t(%d, %d)\n", label, scale_adj[j],
+				scale_report[j][0], scale_report[j][1]);
+	}
+}
+
+#define A_TRY 100000 //100000
+#define B_TRY 1000   //10000
+#define C_TRY 100    //1000
+
+int main(void) {
 	FILE *f = fopen("plot.txt", "w");
-	int print_report = 1, new_report = 0;
+	int new_report = 0;
 	for (int i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
 		good_sinf[i] = sinf(x * M_PI);
@@ -130,24 +139,23 @@ int main() {
 	for (int A = 0; A <= A_TRY + 1; ++A) {
 		for (int B = 0; B <= B_TRY + 1; ++B) {
 			for (int C = 0; C <= C_TRY + 1; ++C) {
-				if (C == C_TRY && (!B || B == B_TRY))
-					print_report = 1;
 				int pcoeffs[PDIM] = {A, B, C};
 				if (test_candidate(pcoeffs))
 				       new_report = 1;
-				if (new_report && print_report) {
-					new_report = 0;
-					print_report = 0;
-					printf(
-"Max.err. %e\nA==%.11f\t(%d, %d)\nB==%.11f\t(%d, %d)\nC==%.11f\t(%d, %d)\n",
-maxerr_sinf,
-scale_adj[0], scale_report[0][0], scale_report[0][1],
-scale_adj[1], scale_report[1][0], scale_report[1][1],
-scale_adj[2], scale_report[2][0], scale_report[2][1]
-						);
-				}
+			}
+			if (B == 0 && new_report) {
+				new_report = 0;
+				print_report();
 			}
 		}
+		if (A == 0 && new_report) {
+			new_report = 0;
+			print_report();
+		}
+	}
+	if (new_report) {
+		new_report = 0;
+		print_report();
 	}
 	for (int i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
