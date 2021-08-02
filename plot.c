@@ -137,16 +137,13 @@ static void print_report(void) {
 
 static int test_C(uint32_t pcoeffs[PDIM], uint32_t n) {
 	uint32_t hits = 0;
-	float tryerr, trymaxerr = MAXERR;
+	float tryerr;
 	for (uint32_t i = 0; i <= C_TRY; ++i) {
 		pcoeffs[n] = i;
-		tryerr = try_candidate(pcoeffs, trymaxerr);
-		if (tryerr < trymaxerr) {
-			trymaxerr = tryerr;
-			if (tryerr < maxerr_sinf) {
-				select_candidate(pcoeffs, tryerr);
-				++hits;
-			}
+		tryerr = try_candidate(pcoeffs, maxerr_sinf);
+		if (tryerr <= maxerr_sinf) {
+			select_candidate(pcoeffs, tryerr);
+			++hits;
 		}
 	}
 	return hits;
