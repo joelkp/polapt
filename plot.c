@@ -15,6 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <math.h>
 
@@ -65,45 +66,51 @@ static inline float test_sin(float x, double scale_adj[]) {
 }
 
 #define LENGTH 1000
-float good_sinf[LENGTH];
-float selerr_sinf[LENGTH];
-float curerr_sinf[LENGTH];
-float maxerr_sinf = 1.f; // large-enough start value to accept any contender
-
 #define PDIM 3
-double scale_adj[PDIM] = {1.f, 1.f, 1.f};
-int scale_report[PDIM][2];
+#define MAXERR 1.f  // large-enough start value to accept any contender
 
-static int test_candidate(int pcoeffs[PDIM]) {
-	double try_scale_adj[PDIM];
-	float try_maxerr_sinf = 0.f;
-	for (int j = 0; j < PDIM; ++j) {
-		int q = pcoeffs[j];
+float good_sinf[LENGTH];
+float tryerr_sinf[LENGTH];
+float selerr_sinf[LENGTH];
+float maxerr_sinf = MAXERR;
+
+double scale_adj[PDIM] = {1.f, 1.f, 1.f};
+double tryscale_adj[PDIM];
+uint32_t scale_report[PDIM][2];
+
+static float try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
+	float try_maxerr = 0.f;
+	for (uint32_t j = 0; j < PDIM; ++j) {
+		uint32_t q = pcoeffs[j];
 		if (q == 0) {
-			try_scale_adj[j] = 1.f;
+			tryscale_adj[j] = 1.f;
 		} else {
-			try_scale_adj[j] = ((double)(q - 1) / (double) q);
+			tryscale_adj[j] = ((double)(q - 1) / (double) q);
 		}
 	}
-	for (int i = 0, end = LENGTH; i < end; ++i) {
+	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
-		float err = good_sinf[i] - test_sin(x * M_PI, try_scale_adj);
+		float err = good_sinf[i] - test_sin(x * M_PI, tryscale_adj);
 		float abserr = fabs(err);
-		if (abserr > maxerr_sinf)
-			return 0;
-		if (abserr > try_maxerr_sinf)
-			try_maxerr_sinf = abserr;
-		curerr_sinf[i] = err;
+		if (abserr > err_threshold)
+			return abserr;
+		if (abserr > try_maxerr)
+			try_maxerr = abserr;
+		tryerr_sinf[i] = err;
 	}
+	return try_maxerr;
+}
+
+static void select_candidate(const uint32_t pcoeffs[PDIM], float try_maxerr) {
 	/*
 	 * New selection made...
 	 */
-	for (int i = 0, end = LENGTH; i < end; ++i) {
-		selerr_sinf[i] = curerr_sinf[i];
+	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
+		selerr_sinf[i] = tryerr_sinf[i];
 	}
-	maxerr_sinf = try_maxerr_sinf;
-	for (int j = 0; j < PDIM; ++j) {
-		int q = pcoeffs[j];
+	maxerr_sinf = try_maxerr;
+	for (uint32_t j = 0; j < PDIM; ++j) {
+		uint32_t q = pcoeffs[j];
 		if (q == 0) {
 			scale_report[j][0] = 0;
 			scale_report[j][1] = 0;
@@ -111,14 +118,13 @@ static int test_candidate(int pcoeffs[PDIM]) {
 			scale_report[j][0] = q - 1;
 			scale_report[j][1] = q;
 		}
-		scale_adj[j] = try_scale_adj[j];
+		scale_adj[j] = tryscale_adj[j];
 	}
-	return 1;
 }
 
 static void print_report(void) {
 	printf("Max.err. %e\n", maxerr_sinf);
-	for (int j = 0; j < PDIM; ++j) {
+	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
 		printf("%c==%.11f\t(%d, %d)\n", label, scale_adj[j],
 				scale_report[j][0], scale_report[j][1]);
@@ -129,20 +135,37 @@ static void print_report(void) {
 #define B_TRY 1000   //10000
 #define C_TRY 100    //1000
 
+static int test_C(uint32_t pcoeffs[PDIM], uint32_t n) {
+	uint32_t hits = 0;
+	float tryerr, trymaxerr = MAXERR;
+	for (uint32_t i = 0; i <= C_TRY; ++i) {
+		pcoeffs[n] = i;
+		tryerr = try_candidate(pcoeffs, trymaxerr);
+		if (tryerr < trymaxerr) {
+			trymaxerr = tryerr;
+			if (tryerr < maxerr_sinf) {
+				select_candidate(pcoeffs, tryerr);
+				++hits;
+			}
+		}
+	}
+	return hits;
+}
+
 int main(void) {
 	FILE *f = fopen("plot.txt", "w");
 	int new_report = 0;
-	for (int i = 0, end = LENGTH; i < end; ++i) {
+	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
 		good_sinf[i] = sinf(x * M_PI);
 	}
-	for (int A = 0; A <= A_TRY + 1; ++A) {
-		for (int B = 0; B <= B_TRY + 1; ++B) {
-			for (int C = 0; C <= C_TRY + 1; ++C) {
-				int pcoeffs[PDIM] = {A, B, C};
-				if (test_candidate(pcoeffs))
-				       new_report = 1;
-			}
+	uint32_t pcoeffs[PDIM] = {0, 0, 0};
+	for (uint32_t A = 0; A <= A_TRY + 1; ++A) {
+		pcoeffs[0] = A;
+		for (uint32_t B = 0; B <= B_TRY + 1; ++B) {
+			pcoeffs[1] = B;
+			if (test_C(pcoeffs, 2) > 0)
+				new_report = 1;
 			if (B == 0 && new_report) {
 				new_report = 0;
 				print_report();
@@ -157,7 +180,7 @@ int main(void) {
 		new_report = 0;
 		print_report();
 	}
-	for (int i = 0, end = LENGTH; i < end; ++i) {
+	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
 		fprintf(f, "%.11f\t%.11f\n", x, selerr_sinf[i]);
 	}
