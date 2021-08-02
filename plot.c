@@ -80,6 +80,7 @@ int scale_report[PDIM][2];
 
 static int test_candidate(int pcoeffs[PDIM]) {
 	double try_scale_adj[PDIM];
+	float try_maxerr_sinf = 0.f;
 	for (int j = 0; j < PDIM; ++j) {
 		int q = pcoeffs[j];
 		if (q == 0) {
@@ -90,22 +91,21 @@ static int test_candidate(int pcoeffs[PDIM]) {
 	}
 	for (int i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
-		float err = good_sinf[i] -
-		test_sin(x * M_PI, try_scale_adj);
-		if (fabs(err) > maxerr_sinf)
+		float err = good_sinf[i] - test_sin(x * M_PI, try_scale_adj);
+		float abserr = fabs(err);
+		if (abserr > maxerr_sinf)
 			return 0;
+		if (abserr > try_maxerr_sinf)
+			try_maxerr_sinf = abserr;
 		curerr_sinf[i] = err;
 	}
 	/*
 	 * New selection made...
 	 */
-	float selmaxerr = 0.f;
 	for (int i = 0, end = LENGTH; i < end; ++i) {
-		if (selmaxerr < curerr_sinf[i])
-			selmaxerr = curerr_sinf[i];
 		selerr_sinf[i] = curerr_sinf[i];
 	}
-	maxerr_sinf = selmaxerr;
+	maxerr_sinf = try_maxerr_sinf;
 	for (int j = 0; j < PDIM; ++j) {
 		int q = pcoeffs[j];
 		if (q == 0) {
