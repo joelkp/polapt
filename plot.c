@@ -91,13 +91,14 @@ double tryscale_adj[PDIM];
 uint32_t scale_report[PDIM][2];
 
 /*
- * For minimizing error at end of curve.
+ * For minimizing error at end of curve only.
  */
-static int compare_endpoint(float minerr) {
+static int compare_enderr(float minerr) {
 	uint32_t i = LENGTH - 1;
 	float x = (i * 1.f/(LENGTH - 1) - 0.5f);
-	float err = good_sinf[i] - test_sin(x * M_PI, tryscale_adj);
+	float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
 	float abserr = fabs(err);
+	minerr = fabs(minerr);
 	tryerr_sinf[i] = err;
 	if (abserr > trymaxerr_sinf)
 		trymaxerr_sinf = abserr;
@@ -108,27 +109,40 @@ static int compare_endpoint(float minerr) {
 
 /*
  * For minimizing error all over curve.
+ *
+ * Uses compare_enderr() as tie-breaker
+ * when the threshold is reached but not exceeded.
  */
 static int compare_maxerr(float minerr) {
+	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
-		float err = good_sinf[i] - test_sin(x * M_PI, tryscale_adj);
+		float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
 		float abserr = fabs(err);
 		tryerr_sinf[i] = err;
 		if (abserr > trymaxerr_sinf)
 			trymaxerr_sinf = abserr;
 		if (abserr >= minerr) {
 			if (abserr == minerr) {
-				int cmp = compare_endpoint(selerr_sinf[end]);
-				if (cmp > 0){//puts("!");
-					continue;}
-				//puts("@");
+				int cmp = compare_enderr(selerr_sinf[end]);
+				if (cmp > 0)
+					continue;
 				return cmp;
 			}
 			return 0 - (abserr > minerr);
 		}
 	}
 	return 1;
+}
+
+/*
+ * For minimizing error at the end of the curve primarily,
+ * over the rest of the curve secondarily.
+ */
+static int compare_endfirstmaxerr(float minerr) {
+	if (compare_enderr(selerr_sinf[LENGTH - 1]) < 0)
+		return -1;
+	return compare_maxerr(minerr);
 }
 
 static int try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
@@ -141,6 +155,7 @@ static int try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
 			tryscale_adj[j] = ((double)(q - 1) / (double) q);
 		}
 	}
+//	return compare_endfirstmaxerr(err_threshold);
 	return compare_maxerr(err_threshold);
 }
 
@@ -199,6 +214,7 @@ int main(void) {
 	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		float x = (i * 1.f/(end - 1) - 0.5f);
 		good_sinf[i] = sinf(x * M_PI);
+		selerr_sinf[i] = MAXERR;
 	}
 	uint32_t pcoeffs[PDIM] = {0, 0, 0};
 	for (uint32_t A = 0; A <= A_TRY + 1; ++A) {
