@@ -19,21 +19,28 @@
 #include <stdio.h>
 #include <math.h>
 
-/* max error: 1.388788e-05 */
+/*
+ * Some polynomials for testing purposes.
+ */
+
+/* max error: 1.388788e-05
+   (tweaked manually using graph plot program) */
 static inline float SGS_sinf_t7_old(float x) {
 	const float scale7 = -1.f/5040 * 29.f/30;
 	float x2 = x*x;
 	return x + x*x2*(-1.f/6 + x2*(1.f/120 + x2*scale7));
 }
 
-/* max error: 3.576279e-07 */
+/* max error: 3.576279e-07
+   (tweaked manually using graph plot program) */
 static inline float SGS_sinf_t9_old(float x) {
 	const float scale9 = 1.f/362880 * 44.f/45;
 	float x2 = x*x;
 	return x + x*x2*(-1.f/6 + x2*(1.f/120 + x2*(-1.f/5040 + x2*scale9)));
 }
 
-/* max error: 1.788139e-07 */
+/* max error: 1.788139e-07
+   https://web.archive.org/web/20200628195036/http://mooooo.ooo/chebyshev-sine-approximation/ */
 static inline float moo_sine(float x) {
 	const float coeffs[] = {
 		-0.10132118f,          // x
@@ -54,6 +61,10 @@ static inline float moo_sine(float x) {
 	float p1  = p3*x2  + coeffs[0];
 	return (x - pi_major - pi_minor) * (x + pi_major + pi_minor) * p1 * x;
 }
+
+/*
+ * The program.
+ */
 
 static inline float test_sin(float x, double scale_adj[]) {
 	const float scale[] = {
@@ -102,9 +113,6 @@ static float try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
 }
 
 static void select_candidate(const uint32_t pcoeffs[PDIM], float try_maxerr) {
-	/*
-	 * New selection made...
-	 */
 	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		selerr_sinf[i] = tryerr_sinf[i];
 	}
@@ -135,10 +143,11 @@ static void print_report(void) {
 #define B_TRY 1000   //10000
 #define C_TRY 100    //1000
 
-static int test_C(uint32_t pcoeffs[PDIM], uint32_t n) {
+static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
+		uint32_t from, uint32_t to) {
 	uint32_t hits = 0;
 	float tryerr;
-	for (uint32_t i = 0; i <= C_TRY; ++i) {
+	for (uint32_t i = from; i <= to; ++i) {
 		pcoeffs[n] = i;
 		tryerr = try_candidate(pcoeffs, maxerr_sinf);
 		if (tryerr <= maxerr_sinf) {
@@ -147,6 +156,10 @@ static int test_C(uint32_t pcoeffs[PDIM], uint32_t n) {
 		}
 	}
 	return hits;
+}
+
+static int test_C(uint32_t pcoeffs[PDIM], uint32_t n) {
+	return test_linear(pcoeffs, n, 0, C_TRY);
 }
 
 int main(void) {
