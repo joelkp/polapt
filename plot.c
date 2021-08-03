@@ -76,7 +76,7 @@ static inline float test_sin(float x, double scale_adj[]) {
 	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
-#define LENGTH 1000
+#define LENGTH 1000 //64 //16 //128 //1024
 #define PDIM 3
 #define MAXERR 1.f  // large-enough start value to accept any contender
 
@@ -84,13 +84,55 @@ float good_sinf[LENGTH];
 float tryerr_sinf[LENGTH];
 float selerr_sinf[LENGTH];
 float maxerr_sinf = MAXERR;
+float trymaxerr_sinf = MAXERR;
 
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 double tryscale_adj[PDIM];
 uint32_t scale_report[PDIM][2];
 
-static float try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
-	float try_maxerr = 0.f;
+/*
+ * For minimizing error at end of curve.
+ */
+static int compare_endpoint(float minerr) {
+	uint32_t i = LENGTH - 1;
+	float x = (i * 1.f/(LENGTH - 1) - 0.5f);
+	float err = good_sinf[i] - test_sin(x * M_PI, tryscale_adj);
+	float abserr = fabs(err);
+	tryerr_sinf[i] = err;
+	if (abserr > trymaxerr_sinf)
+		trymaxerr_sinf = abserr;
+	if (abserr >= minerr)
+		return 0 - (abserr > minerr);
+	return 1;
+}
+
+/*
+ * For minimizing error all over curve.
+ */
+static int compare_maxerr(float minerr) {
+	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+		float x = (i * 1.f/end - 0.5f);
+		float err = good_sinf[i] - test_sin(x * M_PI, tryscale_adj);
+		float abserr = fabs(err);
+		tryerr_sinf[i] = err;
+		if (abserr > trymaxerr_sinf)
+			trymaxerr_sinf = abserr;
+		if (abserr >= minerr) {
+			if (abserr == minerr) {
+				int cmp = compare_endpoint(selerr_sinf[end]);
+				if (cmp > 0){//puts("!");
+					continue;}
+				//puts("@");
+				return cmp;
+			}
+			return 0 - (abserr > minerr);
+		}
+	}
+	return 1;
+}
+
+static int try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
+	trymaxerr_sinf = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		uint32_t q = pcoeffs[j];
 		if (q == 0) {
@@ -99,24 +141,14 @@ static float try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
 			tryscale_adj[j] = ((double)(q - 1) / (double) q);
 		}
 	}
-	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
-		float x = (i * 1.f/(end - 1) - 0.5f);
-		float err = good_sinf[i] - test_sin(x * M_PI, tryscale_adj);
-		float abserr = fabs(err);
-		if (abserr > err_threshold)
-			return abserr;
-		if (abserr > try_maxerr)
-			try_maxerr = abserr;
-		tryerr_sinf[i] = err;
-	}
-	return try_maxerr;
+	return compare_maxerr(err_threshold);
 }
 
-static void select_candidate(const uint32_t pcoeffs[PDIM], float try_maxerr) {
+static void select_candidate(const uint32_t pcoeffs[PDIM]) {
 	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		selerr_sinf[i] = tryerr_sinf[i];
 	}
-	maxerr_sinf = try_maxerr;
+	maxerr_sinf = trymaxerr_sinf;
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		uint32_t q = pcoeffs[j];
 		if (q == 0) {
@@ -131,7 +163,8 @@ static void select_candidate(const uint32_t pcoeffs[PDIM], float try_maxerr) {
 }
 
 static void print_report(void) {
-	printf("Max.err. %e\n", maxerr_sinf);
+	printf("Max.err. %e\tEnd.err. %e\n",
+			maxerr_sinf, selerr_sinf[LENGTH-1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
 		printf("%c==%.11f\t(%d, %d)\n", label, scale_adj[j],
@@ -146,12 +179,10 @@ static void print_report(void) {
 static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t from, uint32_t to) {
 	uint32_t hits = 0;
-	float tryerr;
 	for (uint32_t i = from; i <= to; ++i) {
 		pcoeffs[n] = i;
-		tryerr = try_candidate(pcoeffs, maxerr_sinf);
-		if (tryerr <= maxerr_sinf) {
-			select_candidate(pcoeffs, tryerr);
+		if (try_candidate(pcoeffs, maxerr_sinf) > 0) {
+			select_candidate(pcoeffs);
 			++hits;
 		}
 	}
