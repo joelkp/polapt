@@ -83,7 +83,7 @@ static inline float test_sin(float x, double scale_adj[]) {
 float good_sinf[LENGTH];
 float tryerr_sinf[LENGTH];
 float selerr_sinf[LENGTH];
-float maxerr_sinf = MAXERR;
+float minmaxerr_sinf = MAXERR;
 float trymaxerr_sinf = MAXERR;
 
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
@@ -95,7 +95,7 @@ uint32_t scale_report[PDIM][2];
  */
 static int compare_enderr(float minerr) {
 	uint32_t i = LENGTH - 1;
-	float x = (i * 1.f/(LENGTH - 1) - 0.5f);
+	float x = (1.f - 0.5f);
 	float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
 	float abserr = fabs(err);
 	minerr = fabs(minerr);
@@ -163,7 +163,9 @@ static void select_candidate(const uint32_t pcoeffs[PDIM]) {
 	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
 		selerr_sinf[i] = tryerr_sinf[i];
 	}
-	maxerr_sinf = trymaxerr_sinf;
+	if (trymaxerr_sinf < minmaxerr_sinf)  {
+		minmaxerr_sinf = trymaxerr_sinf;
+	}
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		uint32_t q = pcoeffs[j];
 		if (q == 0) {
@@ -179,7 +181,7 @@ static void select_candidate(const uint32_t pcoeffs[PDIM]) {
 
 static void print_report(void) {
 	printf("Max.err. %e\tEnd.err. %e\n",
-			maxerr_sinf, selerr_sinf[LENGTH-1]);
+			minmaxerr_sinf, selerr_sinf[LENGTH - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
 		printf("%c==%.11f\t(%d, %d)\n", label, scale_adj[j],
@@ -187,16 +189,18 @@ static void print_report(void) {
 	}
 }
 
-#define A_TRY 100000 //100000
-#define B_TRY 1000   //10000
-#define C_TRY 100    //1000
+static const uint32_t loop_limits[PDIM] = {
+	100000, //100000
+	1000,   //10000
+	100,    //1000
+};
 
 static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t from, uint32_t to) {
 	uint32_t hits = 0;
 	for (uint32_t i = from; i <= to; ++i) {
 		pcoeffs[n] = i;
-		if (try_candidate(pcoeffs, maxerr_sinf) > 0) {
+		if (try_candidate(pcoeffs, minmaxerr_sinf) > 0) {
 			select_candidate(pcoeffs);
 			++hits;
 		}
@@ -204,41 +208,40 @@ static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 	return hits;
 }
 
-static int test_C(uint32_t pcoeffs[PDIM], uint32_t n) {
-	return test_linear(pcoeffs, n, 0, C_TRY);
+static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
+	const uint32_t limit = loop_limits[n];
+	int found = 0;
+	if (n == PDIM - 1) {
+		found = (test_linear(pcoeffs, n, 0, limit) > 0);
+	} else {
+		for (uint32_t i = 0; i <= limit; ++i) {
+			pcoeffs[n] = i;
+			if (recurse_linear(pcoeffs, n + 1)) found = 1;
+		}
+	}
+	return found;
+}
+
+static int run_pass(uint32_t n) {
+	uint32_t pcoeffs[PDIM] = {0, 0, 0};
+	int found = (recurse_linear(pcoeffs, n) > 0);
+	if (found)
+		print_report();
+	return found;
 }
 
 int main(void) {
 	FILE *f = fopen("plot.txt", "w");
-	int new_report = 0;
-	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
-		float x = (i * 1.f/(end - 1) - 0.5f);
+	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+		float x = (i * 1.f/end - 0.5f);
 		good_sinf[i] = sinf(x * M_PI);
 		selerr_sinf[i] = MAXERR;
 	}
-	uint32_t pcoeffs[PDIM] = {0, 0, 0};
-	for (uint32_t A = 0; A <= A_TRY + 1; ++A) {
-		pcoeffs[0] = A;
-		for (uint32_t B = 0; B <= B_TRY + 1; ++B) {
-			pcoeffs[1] = B;
-			if (test_C(pcoeffs, 2) > 0)
-				new_report = 1;
-			if (B == 0 && new_report) {
-				new_report = 0;
-				print_report();
-			}
-		}
-		if (A == 0 && new_report) {
-			new_report = 0;
-			print_report();
-		}
-	}
-	if (new_report) {
-		new_report = 0;
-		print_report();
-	}
-	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
-		float x = (i * 1.f/(end - 1) - 0.5f);
+	run_pass(PDIM - 1);
+	run_pass(PDIM - 2);
+	run_pass(PDIM - 3);
+	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+		float x = (i * 1.f/end - 0.5f);
 		fprintf(f, "%.11f\t%.11f\n", x, selerr_sinf[i]);
 	}
 	fclose(f);
