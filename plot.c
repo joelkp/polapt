@@ -88,7 +88,8 @@ float trymaxerr_sinf = MAXERR;
 
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 double tryscale_adj[PDIM];
-uint32_t scale_report[PDIM][2];
+double selscale_adj[PDIM];
+uint32_t selscale_report[PDIM][2];
 
 /*
  * For minimizing error at end of curve only.
@@ -149,11 +150,9 @@ static int try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
 	trymaxerr_sinf = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		uint32_t q = pcoeffs[j];
-		if (q == 0) {
-			tryscale_adj[j] = 1.f;
-		} else {
-			tryscale_adj[j] = ((double)(q - 1) / (double) q);
-		}
+		tryscale_adj[j] = scale_adj[j];
+		if (q > 0)
+			tryscale_adj[j] *= ((double)(q - 1) / (double) q);
 	}
 //	return compare_endfirstmaxerr(err_threshold);
 	return compare_maxerr(err_threshold);
@@ -169,23 +168,34 @@ static void select_candidate(const uint32_t pcoeffs[PDIM]) {
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		uint32_t q = pcoeffs[j];
 		if (q == 0) {
-			scale_report[j][0] = 0;
-			scale_report[j][1] = 0;
+			selscale_report[j][0] = 0;
+			selscale_report[j][1] = 0;
 		} else {
-			scale_report[j][0] = q - 1;
-			scale_report[j][1] = q;
+			selscale_report[j][0] = q - 1;
+			selscale_report[j][1] = q;
 		}
-		scale_adj[j] = tryscale_adj[j];
+		selscale_adj[j] = tryscale_adj[j];
 	}
 }
 
 static void print_report(void) {
-	printf("Max.err. %e\tEnd.err. %e\n",
+	printf("Max.err. %.11e\tEnd.err. %.11e\n",
 			minmaxerr_sinf, selerr_sinf[LENGTH - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
-		printf("%c==%.11f\t(%d, %d)\n", label, scale_adj[j],
-				scale_report[j][0], scale_report[j][1]);
+		printf("%c==%.11e\t(%.11e * (%d.0/%d.0))\n",
+				label, selscale_adj[j], scale_adj[j],
+				selscale_report[j][0], selscale_report[j][1]);
+	}
+}
+
+/*
+ * Makes result of previous pass apply to next pass.
+ */
+static void apply_selected(void) {
+	printf("(Applying selected coefficents.)\n");
+	for (uint32_t j = 0; j < PDIM; ++j) {
+		scale_adj[j] = selscale_adj[j];
 	}
 }
 
@@ -222,9 +232,21 @@ static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	return found;
 }
 
+/*
+ * Run n-dimensional pass, from 0 to PDIM;
+ * 0-pass tests the unmodified polynomial.
+ */
 static int run_pass(uint32_t n) {
 	uint32_t pcoeffs[PDIM] = {0, 0, 0};
-	int found = (recurse_linear(pcoeffs, n) > 0);
+	int found = 0;
+	if (n == 0) {
+		if (try_candidate(pcoeffs, minmaxerr_sinf) > 0) {
+			select_candidate(pcoeffs);
+			found = 1;
+		}
+	} else {
+		found = (recurse_linear(pcoeffs, PDIM - n) > 0);
+	}
 	if (found)
 		print_report();
 	return found;
@@ -237,9 +259,12 @@ int main(void) {
 		good_sinf[i] = sinf(x * M_PI);
 		selerr_sinf[i] = MAXERR;
 	}
-	run_pass(PDIM - 1);
-	run_pass(PDIM - 2);
-	run_pass(PDIM - 3);
+	run_pass(0); /* also print stats for unmodified polynomial */
+	for (uint32_t n = 1; n <= PDIM; ++n) {
+		run_pass(n);
+		if (n < PDIM)
+			apply_selected();
+	}
 	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		fprintf(f, "%.11f\t%.11f\n", x, selerr_sinf[i]);
