@@ -1,4 +1,4 @@
-/* Plotting program for iterating improved Taylor polynomials
+/* Polynomial approximation optimizer.
  * Copyright (c) 2021 Joel K. Pettersson
  * <joelkpettersson@gmail.com>.
  *
@@ -18,6 +18,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
+#ifndef M_PI
+# define M_PI 3.14159265358979323846
+#endif
 
 /*
  * Some polynomials for testing purposes.
@@ -65,6 +68,8 @@ static inline float moo_sine(float x) {
 /*
  * The program.
  */
+
+#define WRITE_PLOT_FILE 1
 
 static inline float test_sin(float x, double scale_adj[]) {
 	const float scale[] = {
@@ -253,7 +258,9 @@ static int run_pass(uint32_t n) {
 }
 
 int main(void) {
+#if WRITE_PLOT_FILE
 	FILE *f = fopen("plot.txt", "w");
+#endif
 	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		good_sinf[i] = sinf(x * M_PI);
@@ -265,10 +272,12 @@ int main(void) {
 		if (n < PDIM)
 			apply_selected();
 	}
+#if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		fprintf(f, "%.11f\t%.11f\n", x, selerr_sinf[i]);
 	}
 	fclose(f);
+#endif
 	return 0;
 }
