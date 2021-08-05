@@ -69,7 +69,7 @@ static inline float moo_sine(float x) {
  * The program.
  */
 
-#define WRITE_PLOT_FILE 1
+#define WRITE_PLOT_FILE 0
 
 static inline float test_sin(float x, double scale_adj[]) {
 	const float scale[] = {
@@ -210,6 +210,29 @@ static const uint32_t loop_limits[PDIM] = {
 	100,    //1000
 };
 
+static int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
+		uint32_t pos, float err_threshold) {
+	pcoeffs[n] = pos;
+	return try_candidate(pcoeffs, err_threshold);
+}
+
+static int probe_linear(uint32_t pcoeffs[PDIM], uint32_t n,
+		uint32_t *pos, int req, float err_threshold) {
+	const uint32_t limit = loop_limits[n];
+	int last_status;
+	uint32_t i = 0;
+	while ((last_status = probe_one(pcoeffs,
+					n, *pos, err_threshold)) >= req) {
+		err_threshold = trymaxerr_sinf;
+		++*pos;
+		if (++i == limit) {
+			puts("error: bailing at limit of linear probing");
+			break;
+		}
+	}
+	return last_status;
+}
+
 static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t from, uint32_t to) {
 	uint32_t hits = 0;
@@ -222,6 +245,54 @@ static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 	}
 	return hits;
 }
+
+static int test_binary(uint32_t pcoeffs[PDIM], uint32_t n) {
+	float err_threshold = minmaxerr_sinf;
+	float err0, err1;
+	int at0, at1;
+	at0 = probe_one(pcoeffs, n, 0, err_threshold);
+	err0 = trymaxerr_sinf;
+	at1 = probe_one(pcoeffs, n, 1, err_threshold);
+	err1 = trymaxerr_sinf;
+	if (at0 < at1 || err0 > err1) {
+		if (at1 > 0) {
+			select_candidate(pcoeffs);
+			return 1;
+		}
+		return 0;
+	}
+	uint32_t hits = 0;
+	hits += test_linear(pcoeffs, n, 0, 0);
+	uint32_t i = 1, j = 1;
+	for (;;) {
+		if (test_linear(pcoeffs, n, i, i)) {
+			++hits;
+			return hits;
+		} else {
+
+		}
+		hits += test_linear(pcoeffs, n, 1, 1);
+	}
+
+	return hits;
+}
+
+/*
+static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
+	const uint32_t limit = loop_limits[n];
+	return test_linear(pcoeffs, n, 0, limit);
+#if 0
+	uint32_t pos = 0;
+	float err_threshold = minmaxerr_sinf;
+	if (probe_linear(pcoeffs, n, &pos, 0, err_threshold) < 0)
+		return 0;
+	err_threshold = minmaxerr_sinf;
+	probe_one(pcoeffs, n, pos, err_threshold);
+	select_candidate(pcoeffs);
+	return 1;
+#endif
+}
+*/
 
 static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	const uint32_t limit = loop_limits[n];
