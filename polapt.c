@@ -71,8 +71,8 @@ static inline float moo_sine(float x) {
 
 /* What to run? */
 #define TEST_Y test_sin
-#define GOOD_Y sin
-#define TEST_T double
+#define GOOD_Y sin //sinf
+#define TEST_T double //float
 
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
@@ -246,7 +246,7 @@ static inline int probe_posf(double pcoeffs[PDIM], uint32_t n,
 	int found = 0;
 	for (uint32_t i = 0, end = SUB_LEN - 1; i <= end; ++i) {
 		double subpos = pos - (i * 1.f/end - 0.5f);
-		pcoeffs[n] = (double) subpos;
+		pcoeffs[n] = subpos;
 		if (try_candidate(pcoeffs, compare_maxerr, minerr) > 0) {
 			minerr = trymaxerr_y;
 			select_candidate(pcoeffs);
@@ -261,7 +261,7 @@ static inline int probe_posf(double pcoeffs[PDIM], uint32_t n,
 static int test_linear(double pcoeffs[PDIM], uint32_t n,
 		uint32_t lbound, uint32_t ubound) {
 	int found = 0;
-	printf("lbound==%u, ubound==%u\n", lbound, ubound);
+	//printf("lbound==%u, ubound==%u\n", lbound, ubound);
 #if 0
 	for (uint32_t i = lbound - 1; i <= ubound; i += 2) {
 		for (uint32_t j = 0, end = SUB_LEN << 1; j < end; ++j) {
@@ -289,16 +289,17 @@ static int test_linear(double pcoeffs[PDIM], uint32_t n,
 }
 
 static int run_linear(double pcoeffs[PDIM], uint32_t n) {
-	uint32_t i, lbound, ubound;
+	uint32_t i, j, lbound, ubound;
+	double ierr;
 	/*
 	 * Find upper and lower bound for search.
+	 *
 	 * Move down by powers of two from a very
 	 * large start range until slope changes.
 	 * (0 has the effect of infinite number.)
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
-		double ierr;
 		probe_posi(pcoeffs, n, i, minmaxerr_y);
 		ierr = trymaxerr_y;
 		probe_posi(pcoeffs, n, i - 1, minmaxerr_y);
@@ -324,6 +325,23 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
+	/*
+	 * Move up by powers of two from lower to
+	 * higher bound, until the slope changes.
+	 */
+	j = 2;
+	i += j;
+	do {
+		ierr = trymaxerr_y;
+		probe_posi(pcoeffs, n, i, minmaxerr_y);
+		if (ierr < trymaxerr_y) {
+			ubound = i;
+			break;
+		}
+		j <<= 1;
+		i += j;
+		probe_posi(pcoeffs, n, i - 1, minmaxerr_y);
+	} while (i < ubound);
 	return test_linear(pcoeffs, n, lbound, ubound);
 }
 
