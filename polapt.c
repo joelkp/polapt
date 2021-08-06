@@ -81,7 +81,7 @@ static inline float test_sin(float x, double scale_adj[]) {
 	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
-#define LENGTH 1000 //64 //16 //128 //1024
+#define LENGTH 16 //1000 //64 //16 //128 //1024
 #define PDIM 3
 #define MAXERR 1.f  // large-enough start value to accept any contender
 
@@ -207,43 +207,45 @@ static void apply_selected(void) {
 static const uint32_t loop_limits[PDIM] = {
 	100000, //100000
 	1000,   //10000
-	100,    //1000
+	100,   //1000
 };
 
-static int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
+static inline int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t pos, float err_threshold) {
 	pcoeffs[n] = pos;
 	return try_candidate(pcoeffs, err_threshold);
 }
 
-static int probe_linear(uint32_t pcoeffs[PDIM], uint32_t n,
-		uint32_t *pos, int req, float err_threshold) {
-	const uint32_t limit = loop_limits[n];
-	int last_status;
-	uint32_t i = 0;
-	while ((last_status = probe_one(pcoeffs,
-					n, *pos, err_threshold)) >= req) {
-		err_threshold = trymaxerr_sinf;
-		++*pos;
-		if (++i == limit) {
-			puts("error: bailing at limit of linear probing");
-			break;
+#if 0
+static int test_div(uint32_t pcoeffs[PDIM], uint32_t n,
+		uint32_t from, uint32_t to) {
+	int status = 0;
+	float minmaxerr = 1.f;
+	for (;;) {
+		uint32_t i = (from + to) >> 1;
+		pcoeffs[n] = i;
+		status = try_candidate(pcoeffs, minmaxerr);
+		if (status > 0) {
+			minmaxerr = trymaxerr_sinf;
+
 		}
 	}
-	return last_status;
 }
+#endif
+
+uint32_t bench_hits, bench_misses;
 
 static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
-		uint32_t from, uint32_t to) {
-	uint32_t hits = 0;
-	for (uint32_t i = from; i <= to; ++i) {
+		uint32_t lbound, uint32_t ubound) {
+	int found = 0;
+	for (uint32_t i = lbound; i <= ubound; ++i) {
 		pcoeffs[n] = i;
 		if (try_candidate(pcoeffs, minmaxerr_sinf) > 0) {
 			select_candidate(pcoeffs);
-			++hits;
+			found = 1;
 		}
 	}
-	return hits;
+	return found;
 }
 
 static int test_binary(uint32_t pcoeffs[PDIM], uint32_t n) {
@@ -277,29 +279,38 @@ static int test_binary(uint32_t pcoeffs[PDIM], uint32_t n) {
 	return hits;
 }
 
-/*
 static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
-	const uint32_t limit = loop_limits[n];
-	return test_linear(pcoeffs, n, 0, limit);
-#if 0
-	uint32_t pos = 0;
-	float err_threshold = minmaxerr_sinf;
-	if (probe_linear(pcoeffs, n, &pos, 0, err_threshold) < 0)
+	uint32_t i, lbound, ubound;
+	float umaxerr, lmaxerr;
+	/*
+	 * Find upper and lower bound for search.
+	 */
+	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
+	do {
+		probe_one(pcoeffs, n, i, MAXERR);
+		umaxerr = trymaxerr_sinf;
+		probe_one(pcoeffs, n, i - 1, MAXERR);
+		lmaxerr = trymaxerr_sinf;
+		if (lmaxerr > umaxerr)
+			break;
+		ubound = i; /* before --i for sub-integer search? */
+		--i;
+		i = (i >> 1) + 1;
+	} while (i > 1);
+	if (i == 1) /* can't handle usefully */
 		return 0;
-	err_threshold = minmaxerr_sinf;
-	probe_one(pcoeffs, n, pos, err_threshold);
-	select_candidate(pcoeffs);
-	return 1;
-#endif
+	lbound = i;
+//	printf("[%u] %.11e vs. [%u] %.11e\n", i, (i - 1), umaxerr, lmaxerr);
+//	printf("%u lbound, %u ubound\n", lbound, ubound);
+	return test_linear(pcoeffs, n, lbound, ubound);
 }
-*/
 
 static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
-	const uint32_t limit = loop_limits[n];
 	int found = 0;
 	if (n == PDIM - 1) {
-		found = (test_linear(pcoeffs, n, 0, limit) > 0);
+		found = (run_linear(pcoeffs, n) > 0);
 	} else {
+		const uint32_t limit = loop_limits[n];
 		for (uint32_t i = 0; i <= limit; ++i) {
 			pcoeffs[n] = i;
 			if (recurse_linear(pcoeffs, n + 1)) found = 1;
@@ -338,6 +349,8 @@ int main(void) {
 		selerr_sinf[i] = MAXERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
+//	run_pass(1); // TEST
+////	run_pass(2); // TEST
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
 		if (n < PDIM)
@@ -350,5 +363,6 @@ int main(void) {
 	}
 	fclose(f);
 #endif
+	printf("BENCH HITS %d, MISSES %d\n", bench_hits, bench_misses);
 	return 0;
 }
