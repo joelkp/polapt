@@ -71,8 +71,8 @@ static inline float moo_sine(float x) {
 
 /* What to run? */
 #define TEST_Y test_sin
-#define GOOD_Y sin //sinf
-#define TEST_T double //float
+#define GOOD_Y sinf //sin
+#define TEST_T float //double
 
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
@@ -304,33 +304,33 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 		ierr = trymaxerr_y;
 		probe_posi(pcoeffs, n, i - 1, minmaxerr_y);
 		if (ierr < trymaxerr_y) {
-			probe_posi(pcoeffs, n, i + 1, minmaxerr_y);
-			if (ierr == trymaxerr_y) {
-				/*
-				 * Next number has an equal error level,
-				 * so fix off-by-one placement by moving
-				 * lower and upper bound upwards.
-				 */
-				lbound += i;
-				ubound += i; /* optimization: don't double */
-			}
+			lbound = i;
 			break;
 		}
 		ubound = i;
-		--i;
-		i = (i >> 1) + 1;
-		lbound = i;
+		i = ((i - 1) >> 1) + 1;
 		if (ierr == trymaxerr_y)
 			ubound -= i >> 1; /* optimization: don't double */
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
+	probe_posi(pcoeffs, n, i + 1, minmaxerr_y);
+	if (ierr == trymaxerr_y) {
+		/*
+		 * Next number has an equal error level,
+		 * so fix off-by-one placement by moving
+		 * lower and upper bound upwards.
+		 */
+		lbound += i;
+		ubound += i; /* optimization: don't double */
+		//puts("???");
+	}
 	/*
 	 * Move up by powers of two from lower to
 	 * higher bound, until the slope changes.
 	 */
 	j = 2;
-	i += j;
+	i = lbound + j;
 	do {
 		ierr = trymaxerr_y;
 		probe_posi(pcoeffs, n, i, minmaxerr_y);
@@ -339,7 +339,7 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 			break;
 		}
 		j <<= 1;
-		i += j;
+		i = lbound + j;
 		probe_posi(pcoeffs, n, i - 1, minmaxerr_y);
 	} while (i < ubound);
 	return test_linear(pcoeffs, n, lbound, ubound);
