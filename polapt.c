@@ -300,6 +300,8 @@ static int test_binary(uint32_t pcoeffs[PDIM], uint32_t n) {
 
 static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	uint32_t i, lbound, ubound;
+//	if (loop_limits[n] < 1024)
+//		return test_linear(pcoeffs, n, 0, loop_limits[n]);
 	/*
 	 * Find upper and lower bound for search.
 	 * Move down by powers of two from a very
@@ -307,8 +309,10 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
-		probe_one(pcoeffs, n, i, MAXERR);
-		if (probe_one(pcoeffs, n, i - 1, trymaxerr_sinf) < 0)
+		probe_one(pcoeffs, n, i, minmaxerr_sinf);
+		float umaxerr = trymaxerr_sinf;
+		probe_one(pcoeffs, n, i - 1, minmaxerr_sinf);
+		if (umaxerr < trymaxerr_sinf)
 			break;
 		ubound = i; /* before --i for sub-integer search? */
 		--i;
@@ -367,6 +371,7 @@ int main(void) {
 	run_pass(0); /* also print stats for unmodified polynomial */
 //	run_pass(1); // TEST
 ////	run_pass(2); // TEST
+//	for (uint32_t n = 1; n <= PDIM - 1; ++n) {
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
 		if (n < PDIM)
