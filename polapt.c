@@ -69,7 +69,7 @@ static inline float moo_sine(float x) {
  * The program.
  */
 
-#define WRITE_PLOT_FILE 1
+#define WRITE_PLOT_FILE 0
 
 static inline float test_sin(float x, double scale_adj[]) {
 	const float scale[] = {
@@ -94,7 +94,7 @@ float trymaxerr_sinf = MAXERR;
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 double tryscale_adj[PDIM];
 double selscale_adj[PDIM];
-uint32_t selscale_report[PDIM][2];
+double selscale_report[PDIM][2];
 
 /*
  * For minimizing error at end of curve only.
@@ -206,7 +206,7 @@ static void print_report(void) {
 			minmaxerr_sinf, selerr_sinf[LENGTH - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
-		printf("%c==%.11e\t(%.11e * (%d.0/%d.0))\n",
+		printf("%c==%.11e\t(%.11e * (%.1f/%.1f))\n",
 				label, selscale_adj[j], scale_adj[j],
 				selscale_report[j][0], selscale_report[j][1]);
 	}
@@ -237,6 +237,8 @@ static inline int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
 static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t lbound, uint32_t ubound) {
 	int found = 0;
+	uint32_t middle = (lbound + ubound) >> 1;
+//	printf("test_linear around %u\n", middle);
 	for (uint32_t i = lbound; i <= ubound; ++i) {
 		pcoeffs[n] = i;
 		if (try_candidate(pcoeffs, compare_maxerr_enderr,
@@ -250,7 +252,6 @@ static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 
 static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	uint32_t i, lbound, ubound;
-	float imaxerr;
 	/*
 	 * Find upper and lower bound for search.
 	 * Move down by powers of two from a very
@@ -259,30 +260,32 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
+		float ierr;
 		probe_one(pcoeffs, n, i, minmaxerr_sinf);
-		imaxerr = trymaxerr_sinf;
+		ierr = trymaxerr_sinf;
 		probe_one(pcoeffs, n, i - 1, minmaxerr_sinf);
-		if (imaxerr < trymaxerr_sinf)
+		if (ierr < trymaxerr_sinf) {
+			probe_one(pcoeffs, n, i + 1, minmaxerr_sinf);
+			if (ierr == trymaxerr_sinf) {
+				/*
+				 * Next number has an equal error level,
+				 * so fix off-by-one placement by moving
+				 * lower and upper bound upwards.
+				 */
+				lbound += i;
+				ubound += i; /* optimization: don't double */
+			}
 			break;
+		}
 		ubound = i;
 		--i;
 		i = (i >> 1) + 1;
-		if (imaxerr == trymaxerr_sinf)
-			ubound -= i >> 1; /* optimization */
+		lbound = i;
+		if (ierr == trymaxerr_sinf)
+			ubound -= i >> 1; /* optimization: don't double */
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
-	lbound = i;
-	probe_one(pcoeffs, n, i + 1, minmaxerr_sinf);
-	if (imaxerr == trymaxerr_sinf) {
-		/*
-		 * Next number has an equal error level,
-		 * so fix off-by-one placement by moving
-		 * lower and upper bound upwards.
-		 */
-		lbound += i;
-		ubound += i;
-	}
 	return test_linear(pcoeffs, n, lbound, ubound);
 }
 
