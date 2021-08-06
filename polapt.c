@@ -69,7 +69,7 @@ static inline float moo_sine(float x) {
  * The program.
  */
 
-#define WRITE_PLOT_FILE 0
+#define WRITE_PLOT_FILE 1
 
 static inline float test_sin(float x, double scale_adj[]) {
 	const float scale[] = {
@@ -225,7 +225,7 @@ static void apply_selected(void) {
 static const uint32_t loop_limits[PDIM] = {
 	100000, //100000
 	1000,   //10000
-	100,   //1000
+	100,    //1000
 };
 
 static inline int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
@@ -233,25 +233,6 @@ static inline int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
 	pcoeffs[n] = pos;
 	return try_candidate(pcoeffs, compare_maxerr, err_threshold);
 }
-
-#if 0
-static int test_div(uint32_t pcoeffs[PDIM], uint32_t n,
-		uint32_t from, uint32_t to) {
-	int status = 0;
-	float minmaxerr = 1.f;
-	for (;;) {
-		uint32_t i = (from + to) >> 1;
-		pcoeffs[n] = i;
-		status = try_candidate(pcoeffs, minmaxerr);
-		if (status > 0) {
-			minmaxerr = trymaxerr_sinf;
-
-		}
-	}
-}
-#endif
-
-uint32_t bench_hits, bench_misses;
 
 static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t lbound, uint32_t ubound) {
@@ -267,50 +248,19 @@ static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 	return found;
 }
 
-static int test_binary(uint32_t pcoeffs[PDIM], uint32_t n) {
-	float err_threshold = minmaxerr_sinf;
-	float err0, err1;
-	int at0, at1;
-	at0 = probe_one(pcoeffs, n, 0, err_threshold);
-	err0 = trymaxerr_sinf;
-	at1 = probe_one(pcoeffs, n, 1, err_threshold);
-	err1 = trymaxerr_sinf;
-	if (at0 < at1 || err0 > err1) {
-		if (at1 > 0) {
-			select_candidate(pcoeffs);
-			return 1;
-		}
-		return 0;
-	}
-	uint32_t hits = 0;
-	hits += test_linear(pcoeffs, n, 0, 0);
-	uint32_t i = 1, j = 1;
-	for (;;) {
-		if (test_linear(pcoeffs, n, i, i)) {
-			++hits;
-			return hits;
-		} else {
-
-		}
-		hits += test_linear(pcoeffs, n, 1, 1);
-	}
-
-	return hits;
-}
-
 static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	uint32_t i, lbound, ubound;
-//	if (loop_limits[n] < 1024)
-//		return test_linear(pcoeffs, n, 0, loop_limits[n]);
+	float umaxerr;
 	/*
 	 * Find upper and lower bound for search.
 	 * Move down by powers of two from a very
 	 * large start range until slope changes.
+	 * (0 has the effect of infinite number.)
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
 		probe_one(pcoeffs, n, i, minmaxerr_sinf);
-		float umaxerr = trymaxerr_sinf;
+		umaxerr = trymaxerr_sinf;
 		probe_one(pcoeffs, n, i - 1, minmaxerr_sinf);
 		if (umaxerr < trymaxerr_sinf)
 			break;
@@ -321,18 +271,28 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	if (i == 1) /* can't handle usefully */
 		return 0;
 	lbound = i;
+	probe_one(pcoeffs, n, i + 1, minmaxerr_sinf);
+	if (umaxerr == trymaxerr_sinf) {
+		/*
+		 * Next number has an equal error level,
+		 * so fix off-by-one placement by moving
+		 * lower and upper bound upwards.
+		 */
+		lbound <<= 1;
+		ubound <<= 1;
+	}
 	return test_linear(pcoeffs, n, lbound, ubound);
 }
 
-static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
+static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t j, uint32_t n) {
 	int found = 0;
-	if (n == PDIM - 1) {
-		found = (run_linear(pcoeffs, n) > 0);
+	if (j == 0) {
+		found = (run_linear(pcoeffs, PDIM - n) > 0);
 	} else {
-		const uint32_t limit = loop_limits[n];
+		const uint32_t limit = loop_limits[PDIM - n + j];
 		for (uint32_t i = 0; i <= limit; ++i) {
-			pcoeffs[n] = i;
-			if (recurse_linear(pcoeffs, n + 1)) found = 1;
+			pcoeffs[PDIM - n + j] = i;
+			if (recurse_linear(pcoeffs, j - 1, n)) found = 1;
 		}
 	}
 	return found;
@@ -352,7 +312,7 @@ static int run_pass(uint32_t n) {
 			found = 1;
 		}
 	} else {
-		found = (recurse_linear(pcoeffs, PDIM - n) > 0);
+		found = (recurse_linear(pcoeffs, n - 1, n) > 0);
 	}
 	if (found)
 		print_report();
@@ -369,9 +329,6 @@ int main(void) {
 		selerr_sinf[i] = MAXERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
-//	run_pass(1); // TEST
-////	run_pass(2); // TEST
-//	for (uint32_t n = 1; n <= PDIM - 1; ++n) {
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
 		if (n < PDIM)
@@ -384,6 +341,5 @@ int main(void) {
 	}
 	fclose(f);
 #endif
-	printf("BENCH HITS %d, MISSES %d\n", bench_hits, bench_misses);
 	return 0;
 }
