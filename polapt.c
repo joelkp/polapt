@@ -264,9 +264,11 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 		probe_one(pcoeffs, n, i - 1, minmaxerr_sinf);
 		if (umaxerr < trymaxerr_sinf)
 			break;
-		ubound = i; /* before --i for sub-integer search? */
+		ubound = i;
 		--i;
 		i = (i >> 1) + 1;
+		if (umaxerr == trymaxerr_sinf)
+			ubound -= i >> 1; /* optimization */
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
@@ -278,8 +280,8 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 		 * so fix off-by-one placement by moving
 		 * lower and upper bound upwards.
 		 */
-		lbound <<= 1;
-		ubound <<= 1;
+		lbound += i;
+		ubound += i;
 	}
 	return test_linear(pcoeffs, n, lbound, ubound);
 }
