@@ -81,7 +81,7 @@ static inline float test_sin(float x, double scale_adj[]) {
 	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
-#define LENGTH 16 //1000 //64 //16 //128 //1024
+#define LENGTH 1000 //64 //16 //128 //1024
 #define PDIM 3
 #define MAXERR 1.f  // large-enough start value to accept any contender
 
@@ -115,11 +115,29 @@ static int compare_enderr(float minerr) {
 
 /*
  * For minimizing error all over curve.
+ */
+static int compare_maxerr(float minerr) {
+	minerr = fabs(minerr);
+	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+		float x = (i * 1.f/end - 0.5f);
+		float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
+		float abserr = fabs(err);
+		tryerr_sinf[i] = err;
+		if (abserr > trymaxerr_sinf)
+			trymaxerr_sinf = abserr;
+		if (abserr > minerr)
+			return -1;
+	}
+	return 1;
+}
+
+/*
+ * For minimizing error all over curve.
  *
  * Uses compare_enderr() as tie-breaker
  * when the threshold is reached but not exceeded.
  */
-static int compare_maxerr(float minerr) {
+static int compare_maxerr_enderr(float minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
@@ -145,13 +163,14 @@ static int compare_maxerr(float minerr) {
  * For minimizing error at the end of the curve primarily,
  * over the rest of the curve secondarily.
  */
-static int compare_endfirstmaxerr(float minerr) {
+static int compare_enderr_maxerr(float minerr) {
 	if (compare_enderr(selerr_sinf[LENGTH - 1]) < 0)
 		return -1;
 	return compare_maxerr(minerr);
 }
 
-static int try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
+static int try_candidate(const uint32_t pcoeffs[PDIM],
+		int (*compare)(float minerr), float err_threshold) {
 	trymaxerr_sinf = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		uint32_t q = pcoeffs[j];
@@ -159,8 +178,7 @@ static int try_candidate(const uint32_t pcoeffs[PDIM], float err_threshold) {
 		if (q > 0)
 			tryscale_adj[j] *= ((double)(q - 1) / (double) q);
 	}
-//	return compare_endfirstmaxerr(err_threshold);
-	return compare_maxerr(err_threshold);
+	return compare(err_threshold);
 }
 
 static void select_candidate(const uint32_t pcoeffs[PDIM]) {
@@ -213,7 +231,7 @@ static const uint32_t loop_limits[PDIM] = {
 static inline int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
 		uint32_t pos, float err_threshold) {
 	pcoeffs[n] = pos;
-	return try_candidate(pcoeffs, err_threshold);
+	return try_candidate(pcoeffs, compare_maxerr, err_threshold);
 }
 
 #if 0
@@ -240,7 +258,8 @@ static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 	int found = 0;
 	for (uint32_t i = lbound; i <= ubound; ++i) {
 		pcoeffs[n] = i;
-		if (try_candidate(pcoeffs, minmaxerr_sinf) > 0) {
+		if (try_candidate(pcoeffs, compare_maxerr_enderr,
+					minmaxerr_sinf) > 0) {
 			select_candidate(pcoeffs);
 			found = 1;
 		}
@@ -281,17 +300,15 @@ static int test_binary(uint32_t pcoeffs[PDIM], uint32_t n) {
 
 static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	uint32_t i, lbound, ubound;
-	float umaxerr, lmaxerr;
 	/*
 	 * Find upper and lower bound for search.
+	 * Move down by powers of two from a very
+	 * large start range until slope changes.
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
 		probe_one(pcoeffs, n, i, MAXERR);
-		umaxerr = trymaxerr_sinf;
-		probe_one(pcoeffs, n, i - 1, MAXERR);
-		lmaxerr = trymaxerr_sinf;
-		if (lmaxerr > umaxerr)
+		if (probe_one(pcoeffs, n, i - 1, trymaxerr_sinf) < 0)
 			break;
 		ubound = i; /* before --i for sub-integer search? */
 		--i;
@@ -300,8 +317,6 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	if (i == 1) /* can't handle usefully */
 		return 0;
 	lbound = i;
-//	printf("[%u] %.11e vs. [%u] %.11e\n", i, (i - 1), umaxerr, lmaxerr);
-//	printf("%u lbound, %u ubound\n", lbound, ubound);
 	return test_linear(pcoeffs, n, lbound, ubound);
 }
 
@@ -327,7 +342,8 @@ static int run_pass(uint32_t n) {
 	uint32_t pcoeffs[PDIM] = {0, 0, 0};
 	int found = 0;
 	if (n == 0) {
-		if (try_candidate(pcoeffs, minmaxerr_sinf) > 0) {
+		if (try_candidate(pcoeffs, compare_maxerr,
+					minmaxerr_sinf) > 0) {
 			select_candidate(pcoeffs);
 			found = 1;
 		}
