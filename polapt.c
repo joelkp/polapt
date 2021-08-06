@@ -81,15 +81,16 @@ static inline float test_sin(float x, double scale_adj[]) {
 	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
-#define LENGTH 1000 //64 //16 //128 //1024
+#define TAB_LEN 1000 //64 //16 //128 //1024
+#define SUB_LEN 10
+#define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define PDIM 3
-#define MAXERR 1.f  // large-enough start value to accept any contender
 
-float good_sinf[LENGTH];
-float tryerr_sinf[LENGTH];
-float selerr_sinf[LENGTH];
-float minmaxerr_sinf = MAXERR;
-float trymaxerr_sinf = MAXERR;
+float good_sinf[TAB_LEN];
+float tryerr_sinf[TAB_LEN];
+float selerr_sinf[TAB_LEN];
+float minmaxerr_sinf = MAX_ERR;
+float trymaxerr_sinf = MAX_ERR;
 
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 double tryscale_adj[PDIM];
@@ -100,7 +101,7 @@ double selscale_report[PDIM][2];
  * For minimizing error at end of curve only.
  */
 static int compare_enderr(float minerr) {
-	uint32_t i = LENGTH - 1;
+	uint32_t i = TAB_LEN - 1;
 	float x = (1.f - 0.5f);
 	float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
 	float abserr = fabs(err);
@@ -118,7 +119,7 @@ static int compare_enderr(float minerr) {
  */
 static int compare_maxerr(float minerr) {
 	minerr = fabs(minerr);
-	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
 		float abserr = fabs(err);
@@ -139,7 +140,7 @@ static int compare_maxerr(float minerr) {
  */
 static int compare_maxerr_enderr(float minerr) {
 	minerr = fabs(minerr);
-	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		float err = test_sin(x * M_PI, tryscale_adj) - good_sinf[i];
 		float abserr = fabs(err);
@@ -164,37 +165,37 @@ static int compare_maxerr_enderr(float minerr) {
  * over the rest of the curve secondarily.
  */
 static int compare_enderr_maxerr(float minerr) {
-	if (compare_enderr(selerr_sinf[LENGTH - 1]) < 0)
+	if (compare_enderr(selerr_sinf[TAB_LEN - 1]) < 0)
 		return -1;
 	return compare_maxerr(minerr);
 }
 
-static int try_candidate(const uint32_t pcoeffs[PDIM],
+static int try_candidate(const double pcoeffs[PDIM],
 		int (*compare)(float minerr), float err_threshold) {
 	trymaxerr_sinf = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
-		uint32_t q = pcoeffs[j];
+		double q = pcoeffs[j];
 		tryscale_adj[j] = scale_adj[j];
 		if (q > 0)
-			tryscale_adj[j] *= ((double)(q - 1) / (double) q);
+			tryscale_adj[j] *= (q - 1.f) / q;
 	}
 	return compare(err_threshold);
 }
 
-static void select_candidate(const uint32_t pcoeffs[PDIM]) {
-	for (uint32_t i = 0, end = LENGTH; i < end; ++i) {
+static void select_candidate(const double pcoeffs[PDIM]) {
+	for (uint32_t i = 0, end = TAB_LEN; i < end; ++i) {
 		selerr_sinf[i] = tryerr_sinf[i];
 	}
 	if (trymaxerr_sinf < minmaxerr_sinf)  {
 		minmaxerr_sinf = trymaxerr_sinf;
 	}
 	for (uint32_t j = 0; j < PDIM; ++j) {
-		uint32_t q = pcoeffs[j];
+		double q = pcoeffs[j];
 		if (q == 0) {
-			selscale_report[j][0] = 0;
-			selscale_report[j][1] = 0;
+			selscale_report[j][0] = 0.f;
+			selscale_report[j][1] = 0.f;
 		} else {
-			selscale_report[j][0] = q - 1;
+			selscale_report[j][0] = q - 1.f;
 			selscale_report[j][1] = q;
 		}
 		selscale_adj[j] = tryscale_adj[j];
@@ -203,7 +204,7 @@ static void select_candidate(const uint32_t pcoeffs[PDIM]) {
 
 static void print_report(void) {
 	printf("Max.err. %.11e\tEnd.err. %.11e\n",
-			minmaxerr_sinf, selerr_sinf[LENGTH - 1]);
+			minmaxerr_sinf, selerr_sinf[TAB_LEN - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
 		printf("%c==%.11e\t(%.11e * (%.1f/%.1f))\n",
@@ -228,29 +229,61 @@ static const uint32_t loop_limits[PDIM] = {
 	100,    //1000
 };
 
-static inline int probe_one(uint32_t pcoeffs[PDIM], uint32_t n,
+static inline int probe_posi(double pcoeffs[PDIM], uint32_t n,
 		uint32_t pos, float err_threshold) {
-	pcoeffs[n] = pos;
+	pcoeffs[n] = (double) pos;
 	return try_candidate(pcoeffs, compare_maxerr, err_threshold);
 }
 
-static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
+static inline int probe_posf(double pcoeffs[PDIM], uint32_t n,
+		float pos, float err_threshold) {
+	int found = 0;
+	float minerr;
+	for (uint32_t i = 0, end = SUB_LEN - 1; i <= end; ++i) {
+		float subpos = pos - (i * 1.f/end - 0.5f);
+		pcoeffs[n] = (double) subpos;
+		if (try_candidate(pcoeffs, compare_maxerr,
+					minmaxerr_sinf) > 0) {
+			minerr = trymaxerr_sinf;
+			select_candidate(pcoeffs);
+			found = 1;
+		}
+	}
+	if (found)
+		trymaxerr_sinf = minerr;
+	return found;
+}
+
+static int test_linear(double pcoeffs[PDIM], uint32_t n,
 		uint32_t lbound, uint32_t ubound) {
 	int found = 0;
-	uint32_t middle = (lbound + ubound) >> 1;
-//	printf("test_linear around %u\n", middle);
+#if 0
+	for (uint32_t i = lbound - 1; i <= ubound; i += 2) {
+		for (uint32_t j = 0, end = SUB_LEN << 1; j < end; ++j) {
+			float pos = i + (j * 1.f/(end - 1) - 1.f);
+			pcoeffs[n] = (double) pos;
+			if (try_candidate(pcoeffs, compare_maxerr_enderr,
+						minmaxerr_sinf) > 0) {
+				select_candidate(pcoeffs);
+				found = 1;
+			}
+		}
+	}
+#else
 	for (uint32_t i = lbound; i <= ubound; ++i) {
-		pcoeffs[n] = i;
+		float pos = i;
+		pcoeffs[n] = (double) pos;
 		if (try_candidate(pcoeffs, compare_maxerr_enderr,
 					minmaxerr_sinf) > 0) {
 			select_candidate(pcoeffs);
 			found = 1;
 		}
 	}
+#endif
 	return found;
 }
 
-static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
+static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 	uint32_t i, lbound, ubound;
 	/*
 	 * Find upper and lower bound for search.
@@ -261,11 +294,11 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
 		float ierr;
-		probe_one(pcoeffs, n, i, minmaxerr_sinf);
+		probe_posi(pcoeffs, n, i, minmaxerr_sinf);
 		ierr = trymaxerr_sinf;
-		probe_one(pcoeffs, n, i - 1, minmaxerr_sinf);
+		probe_posi(pcoeffs, n, i - 1, minmaxerr_sinf);
 		if (ierr < trymaxerr_sinf) {
-			probe_one(pcoeffs, n, i + 1, minmaxerr_sinf);
+			probe_posi(pcoeffs, n, i + 1, minmaxerr_sinf);
 			if (ierr == trymaxerr_sinf) {
 				/*
 				 * Next number has an equal error level,
@@ -289,7 +322,7 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	return test_linear(pcoeffs, n, lbound, ubound);
 }
 
-static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t j, uint32_t n) {
+static int recurse_linear(double pcoeffs[PDIM], uint32_t j, uint32_t n) {
 	int found = 0;
 	if (j == 0) {
 		found = (run_linear(pcoeffs, PDIM - n) > 0);
@@ -308,7 +341,7 @@ static int recurse_linear(uint32_t pcoeffs[PDIM], uint32_t j, uint32_t n) {
  * 0-pass tests the unmodified polynomial.
  */
 static int run_pass(uint32_t n) {
-	uint32_t pcoeffs[PDIM] = {0, 0, 0};
+	double pcoeffs[PDIM] = {0, 0, 0};
 	int found = 0;
 	if (n == 0) {
 		if (try_candidate(pcoeffs, compare_maxerr,
@@ -328,10 +361,10 @@ int main(void) {
 #if WRITE_PLOT_FILE
 	FILE *f = fopen("plot.txt", "w");
 #endif
-	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		good_sinf[i] = sinf(x * M_PI);
-		selerr_sinf[i] = MAXERR;
+		selerr_sinf[i] = MAX_ERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
 	for (uint32_t n = 1; n <= PDIM; ++n) {
@@ -340,7 +373,7 @@ int main(void) {
 			apply_selected();
 	}
 #if WRITE_PLOT_FILE
-	for (uint32_t i = 0, end = LENGTH - 1; i <= end; ++i) {
+	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		float x = (i * 1.f/end - 0.5f);
 		fprintf(f, "%.11f\t%.11f\n", x, selerr_sinf[i]);
 	}
