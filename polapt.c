@@ -216,7 +216,7 @@ static void print_report(void) {
  * Makes result of previous pass apply to next pass.
  */
 static void apply_selected(void) {
-	printf("(Applying selected coefficents.)\n");
+	printf("(Applying selected coefficients.)\n");
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		scale_adj[j] = selscale_adj[j];
 	}
@@ -250,7 +250,7 @@ static int test_linear(uint32_t pcoeffs[PDIM], uint32_t n,
 
 static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	uint32_t i, lbound, ubound;
-	float umaxerr;
+	float imaxerr;
 	/*
 	 * Find upper and lower bound for search.
 	 * Move down by powers of two from a very
@@ -260,21 +260,21 @@ static int run_linear(uint32_t pcoeffs[PDIM], uint32_t n) {
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
 		probe_one(pcoeffs, n, i, minmaxerr_sinf);
-		umaxerr = trymaxerr_sinf;
+		imaxerr = trymaxerr_sinf;
 		probe_one(pcoeffs, n, i - 1, minmaxerr_sinf);
-		if (umaxerr < trymaxerr_sinf)
+		if (imaxerr < trymaxerr_sinf)
 			break;
 		ubound = i;
 		--i;
 		i = (i >> 1) + 1;
-		if (umaxerr == trymaxerr_sinf)
+		if (imaxerr == trymaxerr_sinf)
 			ubound -= i >> 1; /* optimization */
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
 	lbound = i;
 	probe_one(pcoeffs, n, i + 1, minmaxerr_sinf);
-	if (umaxerr == trymaxerr_sinf) {
+	if (imaxerr == trymaxerr_sinf) {
 		/*
 		 * Next number has an equal error level,
 		 * so fix off-by-one placement by moving
