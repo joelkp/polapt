@@ -71,8 +71,8 @@ static inline float moo_sine(float x) {
 
 /* What to run? */
 #define TEST_Y test_sin
-#define GOOD_Y sinf //sin
-#define TEST_T float //double
+#define GOOD_Y sinf
+#define TEST_T float
 
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
@@ -101,7 +101,8 @@ double trymaxerr_y = MAX_ERR;
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 double tryscale_adj[PDIM];
 double selscale_adj[PDIM];
-double selscale_report[PDIM][2];
+double trypos[PDIM];
+double selpos[PDIM];
 
 /*
  * For minimizing error at end of curve only.
@@ -181,6 +182,7 @@ static int try_candidate(const double pcoeffs[PDIM],
 	trymaxerr_y = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		double q = pcoeffs[j];
+		trypos[j] = pcoeffs[j];
 		tryscale_adj[j] = scale_adj[j];
 		if (q > 0)
 			tryscale_adj[j] *= (q - 1.f) / q;
@@ -188,7 +190,7 @@ static int try_candidate(const double pcoeffs[PDIM],
 	return compare(minerr);
 }
 
-static void select_candidate(const double pcoeffs[PDIM]) {
+static void select_candidate(void) {
 	for (uint32_t i = 0, end = TAB_LEN; i < end; ++i) {
 		selerr_y[i] = tryerr_y[i];
 	}
@@ -196,14 +198,7 @@ static void select_candidate(const double pcoeffs[PDIM]) {
 		minmaxerr_y = trymaxerr_y;
 	}
 	for (uint32_t j = 0; j < PDIM; ++j) {
-		double q = pcoeffs[j];
-		if (q == 0) {
-			selscale_report[j][0] = 0.f;
-			selscale_report[j][1] = 0.f;
-		} else {
-			selscale_report[j][0] = q - 1.f;
-			selscale_report[j][1] = q;
-		}
+		selpos[j] = trypos[j];
 		selscale_adj[j] = tryscale_adj[j];
 	}
 }
@@ -211,6 +206,17 @@ static void select_candidate(const double pcoeffs[PDIM]) {
 static void print_report(void) {
 	printf("Max.err. %.11e\tEnd.err. %.11e\n",
 			minmaxerr_y, selerr_y[TAB_LEN - 1]);
+	double selscale_report[PDIM][2];
+	for (uint32_t j = 0; j < PDIM; ++j) {
+		double q = selpos[j];
+		if (q <= 0) {
+			selscale_report[j][0] = 0.f;
+			selscale_report[j][1] = 0.f;
+		} else {
+			selscale_report[j][0] = q - 1.f;
+			selscale_report[j][1] = q;
+		}
+	}
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
 		printf("%c==%.11e\t(%.11e * (%.1f/%.1f))\n",
@@ -249,7 +255,7 @@ static inline int probe_posf(double pcoeffs[PDIM], uint32_t n,
 		pcoeffs[n] = subpos;
 		if (try_candidate(pcoeffs, compare_maxerr, minerr) > 0) {
 			minerr = trymaxerr_y;
-			select_candidate(pcoeffs);
+			select_candidate();
 			found = 1;
 		}
 	}
@@ -269,7 +275,7 @@ static int test_linear(double pcoeffs[PDIM], uint32_t n,
 			pcoeffs[n] = (double) pos;
 			if (try_candidate(pcoeffs, compare_maxerr_enderr,
 						minmaxerr_y) > 0) {
-				select_candidate(pcoeffs);
+				select_candidate();
 				found = 1;
 			}
 		}
@@ -280,11 +286,13 @@ static int test_linear(double pcoeffs[PDIM], uint32_t n,
 		pcoeffs[n] = pos;
 		if (try_candidate(pcoeffs, compare_maxerr_enderr,
 					minmaxerr_y) > 0) {
-			select_candidate(pcoeffs);
+			select_candidate();
 			found = 1;
 		}
 	}
 #endif
+	if (found)
+		printf("*[%f], l==%u, m==%u, u==%u\n", selpos[n], lbound, (lbound + ubound) >> 1, ubound);
 	return found;
 }
 
@@ -315,16 +323,8 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 	if (i == 1) /* can't handle usefully */
 		return 0;
 	probe_posi(pcoeffs, n, i + 1, minmaxerr_y);
-	if (ierr == trymaxerr_y) {
-		/*
-		 * Next number has an equal error level,
-		 * so fix off-by-one placement by moving
-		 * lower and upper bound upwards.
-		 */
-		lbound += i;
+	if (ierr == trymaxerr_y)
 		ubound += i; /* optimization: don't double */
-		//puts("???");
-	}
 	/*
 	 * Move up by powers of two from lower to
 	 * higher bound, until the slope changes.
@@ -369,7 +369,7 @@ static int run_pass(uint32_t n) {
 	if (n == 0) {
 		if (try_candidate(pcoeffs, compare_maxerr,
 					minmaxerr_y) > 0) {
-			select_candidate(pcoeffs);
+			select_candidate();
 			found = 1;
 		}
 	} else {
