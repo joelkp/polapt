@@ -74,6 +74,9 @@ static inline float moo_sine(float x) {
 #define GOOD_Y sinf
 #define TEST_T float
 
+/* Test more than starting point? */
+#define RUN_TESTS       1
+
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
 
@@ -90,6 +93,7 @@ static inline TEST_T test_sin(TEST_T x, double scale_adj[]) {
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
+#define EPSILON (1.f/SUB_LEN)
 #define PDIM 3
 
 TEST_T good_y[TAB_LEN];
@@ -177,12 +181,14 @@ static int compare_enderr_maxerr(double minerr) {
 	return compare_maxerr(minerr);
 }
 
-static int try_candidate(const double pcoeffs[PDIM],
-		int (*compare)(double minerr), double minerr) {
+static inline void set_candidate(uint32_t n, double pos) {
+	trypos[n] = pos;
+}
+
+static int try_candidate(int (*compare)(double minerr), double minerr) {
 	trymaxerr_y = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
-		double q = pcoeffs[j];
-		trypos[j] = pcoeffs[j];
+		double q = trypos[j];
 		tryscale_adj[j] = scale_adj[j];
 		if (q > 0)
 			tryscale_adj[j] *= (q - 1.f) / q;
@@ -241,19 +247,17 @@ static const uint32_t loop_limits[PDIM] = {
 	100,    //1000
 };
 
-static inline int probe_posi(double pcoeffs[PDIM], uint32_t n,
-		uint32_t pos, double minerr) {
-	pcoeffs[n] = (double) pos;
-	return try_candidate(pcoeffs, compare_maxerr, minerr);
+static inline int probe_posi(uint32_t n, uint32_t pos, double minerr) {
+	set_candidate(n, pos);
+	return try_candidate(compare_maxerr, minerr);
 }
 
-static inline int probe_posf(double pcoeffs[PDIM], uint32_t n,
-		double pos, double minerr) {
+static inline int probe_posf(uint32_t n, double pos, double minerr) {
 	int found = 0;
 	for (uint32_t i = 0, end = SUB_LEN - 1; i <= end; ++i) {
 		double subpos = pos - (i * 1.f/end - 0.5f);
-		pcoeffs[n] = subpos;
-		if (try_candidate(pcoeffs, compare_maxerr, minerr) > 0) {
+		set_candidate(n, subpos);
+		if (try_candidate(compare_maxerr, minerr) > 0) {
 			minerr = trymaxerr_y;
 			select_candidate();
 			found = 1;
@@ -264,16 +268,15 @@ static inline int probe_posf(double pcoeffs[PDIM], uint32_t n,
 	return found;
 }
 
-static int test_linear(double pcoeffs[PDIM], uint32_t n,
-		uint32_t lbound, uint32_t ubound) {
+static int test_linear(uint32_t n, uint32_t lbound, uint32_t ubound) {
 	int found = 0;
 	//printf("lbound==%u, ubound==%u\n", lbound, ubound);
 #if 0
 	for (uint32_t i = lbound - 1; i <= ubound; i += 2) {
 		for (uint32_t j = 0, end = SUB_LEN << 1; j < end; ++j) {
 			double pos = i + (j * 1.f/(end - 1) - 1.f);
-			pcoeffs[n] = (double) pos;
-			if (try_candidate(pcoeffs, compare_maxerr_enderr,
+			set_candidate(n, pos);
+			if (try_candidate(compare_maxerr_enderr,
 						minmaxerr_y) > 0) {
 				select_candidate();
 				found = 1;
@@ -283,20 +286,20 @@ static int test_linear(double pcoeffs[PDIM], uint32_t n,
 #else
 	for (uint32_t i = lbound; i <= ubound; ++i) {
 		double pos = i;
-		pcoeffs[n] = pos;
-		if (try_candidate(pcoeffs, compare_maxerr_enderr,
+		set_candidate(n, pos);
+		if (try_candidate(compare_maxerr_enderr,
 					minmaxerr_y) > 0) {
 			select_candidate();
 			found = 1;
 		}
 	}
 #endif
-	if (found)
-		printf("*[%f], l==%u, m==%u, u==%u\n", selpos[n], lbound, (lbound + ubound) >> 1, ubound);
+//	if (found)
+//		printf("*[%f], l==%u, m==%u, u==%u\n", selpos[n], lbound, (lbound + ubound) >> 1, ubound);
 	return found;
 }
 
-static int run_linear(double pcoeffs[PDIM], uint32_t n) {
+static int run_linear(uint32_t n) {
 	uint32_t i, j, lbound, ubound;
 	double ierr;
 	/*
@@ -308,9 +311,9 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
-		probe_posi(pcoeffs, n, i, minmaxerr_y);
+		probe_posi(n, i, minmaxerr_y);
 		ierr = trymaxerr_y;
-		probe_posi(pcoeffs, n, i - 1, minmaxerr_y);
+		probe_posi(n, i - 1, minmaxerr_y);
 		if (ierr < trymaxerr_y) {
 			lbound = i;
 			break;
@@ -322,7 +325,7 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
-	probe_posi(pcoeffs, n, i + 1, minmaxerr_y);
+	probe_posi(n, i + 1, minmaxerr_y);
 	if (ierr == trymaxerr_y)
 		ubound += i; /* optimization: don't double */
 	/*
@@ -333,27 +336,27 @@ static int run_linear(double pcoeffs[PDIM], uint32_t n) {
 	i = lbound + j;
 	do {
 		ierr = trymaxerr_y;
-		probe_posi(pcoeffs, n, i, minmaxerr_y);
+		probe_posi(n, i, minmaxerr_y);
 		if (ierr < trymaxerr_y) {
 			ubound = i;
 			break;
 		}
 		j <<= 1;
 		i = lbound + j;
-		probe_posi(pcoeffs, n, i - 1, minmaxerr_y);
+		probe_posi(n, i - 1, minmaxerr_y);
 	} while (i < ubound);
-	return test_linear(pcoeffs, n, lbound, ubound);
+	return test_linear(n, lbound, ubound);
 }
 
-static int recurse_linear(double pcoeffs[PDIM], uint32_t j, uint32_t n) {
+static int recurse_linear(uint32_t j, uint32_t n) {
 	int found = 0;
 	if (j == 0) {
-		found = (run_linear(pcoeffs, PDIM - n) > 0);
+		found = (run_linear(PDIM - n) > 0);
 	} else {
 		const uint32_t limit = loop_limits[PDIM - n + j];
 		for (uint32_t i = 0; i <= limit; ++i) {
-			pcoeffs[PDIM - n + j] = i;
-			if (recurse_linear(pcoeffs, j - 1, n)) found = 1;
+			set_candidate(PDIM - n + j, i);
+			if (recurse_linear(j - 1, n)) found = 1;
 		}
 	}
 	return found;
@@ -364,16 +367,16 @@ static int recurse_linear(double pcoeffs[PDIM], uint32_t j, uint32_t n) {
  * 0-pass tests the unmodified polynomial.
  */
 static int run_pass(uint32_t n) {
-	double pcoeffs[PDIM] = {0, 0, 0};
 	int found = 0;
+	for (uint32_t j = 0; j < PDIM; ++j)
+		set_candidate(j, 0);
 	if (n == 0) {
-		if (try_candidate(pcoeffs, compare_maxerr,
-					minmaxerr_y) > 0) {
+		if (try_candidate(compare_maxerr, minmaxerr_y) > 0) {
 			select_candidate();
 			found = 1;
 		}
 	} else {
-		found = (recurse_linear(pcoeffs, n - 1, n) > 0);
+		found = (recurse_linear(n - 1, n) > 0);
 	}
 	if (found)
 		print_report();
@@ -390,11 +393,13 @@ int main(void) {
 		selerr_y[i] = MAX_ERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
+#if RUN_TESTS
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
 		if (n < PDIM)
 			apply_selected();
 	}
+#endif
 #if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		double x = (i * 1.f/end - 0.5f);
