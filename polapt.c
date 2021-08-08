@@ -247,9 +247,38 @@ static const uint32_t loop_limits[PDIM] = {
 	100,    //1000
 };
 
-static inline int probe_posi(uint32_t n, uint32_t pos, double minerr) {
+uint32_t bench_count;
+static inline double probe_posi(uint32_t n, uint32_t pos, double minerr) {
+	double err;
+	++bench_count;
 	set_candidate(n, pos);
-	return try_candidate(compare_maxerr, minerr);
+	try_candidate(compare_maxerr, minerr);
+	err = trymaxerr_y;
+	return err;
+}
+static inline double probe_at(uint32_t n, uint32_t pos) {
+	double err;
+	++bench_count;
+	set_candidate(n, pos);
+	try_candidate(compare_maxerr, minmaxerr_y);
+	err = trymaxerr_y;
+	return err;
+}
+static inline double probe_above(uint32_t n, uint32_t pos) {
+	double err;
+	++bench_count;
+	set_candidate(n, pos * 2.f);
+	try_candidate(compare_maxerr, minmaxerr_y);
+	err = trymaxerr_y;
+	return err;
+}
+static inline double probe_below(uint32_t n, uint32_t pos) {
+	double err;
+	++bench_count;
+	set_candidate(n, pos * .5f);
+	try_candidate(compare_maxerr, minmaxerr_y);
+	err = trymaxerr_y;
+	return err;
 }
 
 static inline int probe_posf(uint32_t n, double pos, double minerr) {
@@ -270,6 +299,16 @@ static inline int probe_posf(uint32_t n, double pos, double minerr) {
 
 static int test_linear(uint32_t n, uint32_t lbound, uint32_t ubound) {
 	int found = 0;
+	uint32_t middle = ((lbound + 1) >> 1) + (ubound >> 1);
+	/*
+	double le = probe_posi(n, lbound, minmaxerr_y);
+	double me = probe_posi(n, middle, minmaxerr_y);
+	double ue = probe_posi(n, ubound, minmaxerr_y);
+	printf("le %e, me %e, ue %e | %e, %e\n",
+			le, me, ue,
+			(me - le), (ue - me)
+	      );
+	      */
 	//printf("lbound==%u, ubound==%u\n", lbound, ubound);
 #if 0
 	for (uint32_t i = lbound - 1; i <= ubound; i += 2) {
@@ -294,12 +333,187 @@ static int test_linear(uint32_t n, uint32_t lbound, uint32_t ubound) {
 		}
 	}
 #endif
-//	if (found)
-//		printf("*[%f], l==%u, m==%u, u==%u\n", selpos[n], lbound, (lbound + ubound) >> 1, ubound);
+	if (found)
+		printf("*[%f], l==%u, m==%u, u==%u\n", selpos[n], lbound, (lbound + ubound) >> 1, ubound);
 	return found;
 }
 
+//static uint32_t find_middle
+
 static int run_linear(uint32_t n) {
+	uint32_t lbound, mpivot, ubound;
+	double lerr, merr, uerr;
+	double mdecerr, mincerr;
+	/*
+	 * Find upper and lower bound for search.
+	 * (0 has the effect of infinite number.)
+	 *
+	 * First narrow it down to powers of two.
+	 */
+	uint8_t lpow = 0, mpow = 16, upow = 32; /* treat 1<<32 as above 1<<31 */
+	lbound = 1; /* treated as smallest value */
+	mpivot = 1<<16;
+	ubound = 0; /* treated as UINT32_MAX + 1 */
+	mincerr = probe_above(n, mpivot);
+	merr = probe_at(n, mpivot);
+	mdecerr = probe_below(n, mpivot);
+	for (;;) {
+		if (mdecerr < mincerr) {
+			if (mdecerr < merr) {
+				/* - - 0 */
+				lerr = probe_at(n, lbound);
+			GO_DOWN:
+				upow = mpow;
+				ubound = mpivot;
+				mpow = (lpow + mpow + 1) >> 1;
+				mpivot = 1<<mpow;
+				if (mpivot == lbound) {
+					merr = lerr;
+					break;
+				}
+				mdecerr = probe_below(n, mpivot);
+				merr = probe_at(n, mpivot);
+				if (mdecerr <= merr) goto GO_DOWN;
+				mincerr = probe_above(n, mpivot);
+//				printf("-- l1<<%u==%u, m1<<%u==%u\n", lpow, lbound, mpow, mpivot);
+			} else {
+//				if (mdecerr == merr) puts("???");
+				/* - + 0 */
+//				printf("? {- + 0}\t(%u +/- 1)\n", mpivot);
+				break; /* a middle found */
+			}
+		} else {
+			if (merr <= mincerr) {
+				/* + - 0 */
+//				printf("! {+ - 0}\t(%u +/- 1)\n", mpivot);
+				break; /* a middle found */
+			} else {
+//				if (merr == mincerr) puts("!!!");
+				/* + + 0 */
+				uerr = probe_at(n, ubound);
+			GO_UP:
+				lpow = mpow;
+				lbound = mpivot;
+				mpow = (upow + mpow + 1) >> 1;
+				mpivot = (mpow == 32) ? 0 : 1<<mpow;
+				if (mpivot == ubound) {
+					merr = uerr;
+					break;
+				}
+				mincerr = probe_above(n, mpivot);
+				merr = probe_at(n, mpivot);
+				if (mincerr <= merr) goto GO_UP;
+				mdecerr = probe_below(n, mpivot);
+//				printf("++ u1<<%u==%u, m1<<%u==%u\n", upow, ubound, mpow, mpivot);
+			}
+		}
+	RETEST:
+		// printf(", {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+		if ((ubound - 1) <= mpivot) break;
+		if ((lbound + 1) >= mpivot) break;
+	}
+//	printf(". {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+	if (lbound > mpivot) /* happens if there's only up-going */
+		lbound = mpivot;
+	if (ubound > mpivot && ubound < (mpivot << 1)) /* ??? */
+		ubound = mpivot << 1;
+#if 0 //.
+		if (probe_posi(n, mpivot - 1, minmaxerr_y) < merr)
+
+		if (uerr < lerr) {
+			if (uerr < merr) {
+				if (ubound == 0) {
+					/* sloppy but almost always right */
+					lbound = ubound;
+					goto SEARCH;
+				}
+				lbound = mpivot;
+			} else {
+				goto TO_M;
+			}
+		} else {
+			if (merr < lerr) {
+				goto TO_M;
+			} else {
+				if (lbound == 1) {
+					/* sloppy but almost always right */
+					ubound = lbound;
+					goto SEARCH;
+				}
+				ubound = mpivot;
+			}
+		}
+		mpivot = ((lbound + 1) >> 1) + ((ubound - 1) >> 1) + 1;
+		if (ubound - mpivot < 1) break;
+		if (lbound - mpivot < 1) break;
+//		printf("2{l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+		continue;
+	TO_M:
+		lbound = ((lbound + 1) >> 1) + (mpivot >> 1);
+		ubound = ((ubound - 1) >> 1) + ((mpivot + 1) >> 1) + 1;
+//		printf("{l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+		if (ubound - mpivot < 1) break;
+		if (mpivot - lbound < 1) break;
+	}
+#endif //.
+#if 0
+	/*
+	 * Find upper and lower bound for search.
+	 */
+	uint32_t lbound, mpivot, ubound;
+	double lerr, merr, uerr;
+	lbound = 1; /* treated as smallest value */
+	ubound = 0; /* treated as UINT32_MAX + 1 */
+	/* move lbound up by powers of two until
+	   the error curve gets increasing slope */
+	do {
+		lerr = probe_posi(n, lbound, minmaxerr_y);
+		if (lerr <= probe_posi(n, lbound + 1, minmaxerr_y)) {
+			if (lerr == probe_posi(n, lbound - 1, minmaxerr_y))
+				lbound >>= 1;
+			break;
+		}
+		lbound <<= 1;
+	} while (lbound != ubound);
+	if (lbound <= 2) {
+		ubound = (lerr == trymaxerr_y) ? lbound + 1 : lbound;
+		goto SEARCH;
+	}
+	lbound >>= 1;
+	/* move ubound down powers of two, until
+	   the error curve gets decreasing slope */
+	do {
+		uerr = probe_posi(n, ubound, minmaxerr_y);
+		if (probe_posi(n, ubound - 1, minmaxerr_y) > uerr) {
+			if (uerr == probe_posi(n, ubound + 1, minmaxerr_y))
+				ubound <<= 1;
+			break;
+		}
+		ubound = ((ubound - 1) >> 1) + 1;
+	} while (ubound > lbound);
+	if (ubound < lbound) {
+		if (uerr <= lerr) {
+			lbound = ubound;
+			goto SEARCH;
+		} else {
+			puts("AAAA");
+		//	ubound = lbound << 3;
+			goto SEARCH;
+		}
+	}
+	ubound <<= 1;
+	if (ubound < lbound)
+		printf("lbound==%u, ubound==%u\n", lbound, ubound);
+	/*
+	if (ubound == lbound)
+		goto SEARCH;
+	lerr = probe_posi(n, lbound, minmaxerr_y);
+	for (;;) {
+		mpivot = ((lbound + 1) >> 1) + ((ubound - 1) >> 1) + 1;
+		merr = probe_posi(n, mpivot, minmaxerr_y);
+	}
+	*/
+#elif 0
 	uint32_t i, j, lbound, ubound;
 	double ierr;
 	/*
@@ -311,10 +525,8 @@ static int run_linear(uint32_t n) {
 	 */
 	i = lbound = ubound = 0; /* treat 0 as UINT32_MAX + 1 */
 	do {
-		probe_posi(n, i, minmaxerr_y);
-		ierr = trymaxerr_y;
-		probe_posi(n, i - 1, minmaxerr_y);
-		if (ierr < trymaxerr_y) {
+		ierr = probe_posi(n, i, minmaxerr_y);
+		if (ierr < probe_posi(n, i - 1, minmaxerr_y)) {
 			lbound = i;
 			break;
 		}
@@ -325,8 +537,7 @@ static int run_linear(uint32_t n) {
 	} while (i > 1);
 	if (i == 1) /* can't handle usefully */
 		return 0;
-	probe_posi(n, i + 1, minmaxerr_y);
-	if (ierr == trymaxerr_y)
+	if (ierr == probe_posi(n, i + 1, minmaxerr_y))
 		ubound += i; /* optimization: don't double */
 	/*
 	 * Move up by powers of two from lower to
@@ -335,16 +546,17 @@ static int run_linear(uint32_t n) {
 	j = 2;
 	i = lbound + j;
 	do {
-		ierr = trymaxerr_y;
-		probe_posi(n, i, minmaxerr_y);
-		if (ierr < trymaxerr_y) {
+		ierr = probe_posi(n, i - 1, minmaxerr_y);
+		if (ierr < probe_posi(n, i, minmaxerr_y)) {
 			ubound = i;
 			break;
 		}
 		j <<= 1;
 		i = lbound + j;
-		probe_posi(n, i - 1, minmaxerr_y);
 	} while (i < ubound);
+#endif
+SEARCH:
+//	printf("L==%u, U==%u\n", lbound, ubound);
 	return test_linear(n, lbound, ubound);
 }
 
@@ -407,5 +619,6 @@ int main(void) {
 	}
 	fclose(f);
 #endif
+	printf("BENCH %u\n", bench_count);
 	return 0;
 }
