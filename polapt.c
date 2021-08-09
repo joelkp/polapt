@@ -78,7 +78,7 @@ static inline float moo_sine(float x) {
 #define RUN_TESTS       1
 
 /* Produce file suitable for gnuplot? */
-#define WRITE_PLOT_FILE 1
+#define WRITE_PLOT_FILE 0
 
 static inline TEST_T test_sin(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
@@ -264,22 +264,6 @@ static inline double probe_at(uint32_t n, uint32_t pos) {
 	err = trymaxerr_y;
 	return err;
 }
-static inline double probe_above(uint32_t n, uint32_t pos) {
-	double err;
-	++bench_count;
-	set_candidate(n, pos * 2.f);
-	try_candidate(compare_maxerr, minmaxerr_y);
-	err = trymaxerr_y;
-	return err;
-}
-static inline double probe_below(uint32_t n, uint32_t pos) {
-	double err;
-	++bench_count;
-	set_candidate(n, pos * .5f);
-	try_candidate(compare_maxerr, minmaxerr_y);
-	err = trymaxerr_y;
-	return err;
-}
 
 static inline int probe_posf(uint32_t n, double pos, double minerr) {
 	int found = 0;
@@ -299,17 +283,7 @@ static inline int probe_posf(uint32_t n, double pos, double minerr) {
 
 static int test_linear(uint32_t n, uint32_t lbound, uint32_t ubound) {
 	int found = 0;
-	uint32_t middle = ((lbound + 1) >> 1) + (ubound >> 1);
-	/*
-	double le = probe_posi(n, lbound, minmaxerr_y);
-	double me = probe_posi(n, middle, minmaxerr_y);
-	double ue = probe_posi(n, ubound, minmaxerr_y);
-	printf("le %e, me %e, ue %e | %e, %e\n",
-			le, me, ue,
-			(me - le), (ue - me)
-	      );
-	      */
-	//printf("lbound==%u, ubound==%u\n", lbound, ubound);
+	printf("loop: lbound==%u, ubound==%u\n", lbound, ubound);
 #if 0
 	for (uint32_t i = lbound - 1; i <= ubound; i += 2) {
 		for (uint32_t j = 0, end = SUB_LEN << 1; j < end; ++j) {
@@ -343,7 +317,7 @@ static int test_linear(uint32_t n, uint32_t lbound, uint32_t ubound) {
 static int run_linear(uint32_t n) {
 	uint32_t lbound, mpivot, ubound;
 	double lerr, merr, uerr;
-	double mdecerr, mincerr;
+	double mlerr, muerr;
 	/*
 	 * Find upper and lower bound for search.
 	 * (0 has the effect of infinite number.)
@@ -354,71 +328,105 @@ static int run_linear(uint32_t n) {
 	lbound = 1; /* treated as smallest value */
 	mpivot = 1<<16;
 	ubound = 0; /* treated as UINT32_MAX + 1 */
-	mincerr = probe_above(n, mpivot);
+	lerr = probe_at(n, lbound);
 	merr = probe_at(n, mpivot);
-	mdecerr = probe_below(n, mpivot);
+	uerr = probe_at(n, ubound);
 	for (;;) {
-		if (mdecerr < mincerr) {
-			if (mdecerr < merr) {
-				/* - - 0 */
-				lerr = probe_at(n, lbound);
-			GO_DOWN:
+		uint8_t mlpow, mupow;
+		uint32_t mlpos, mupos;
+		if (lpow + 1 < mpow) {
+			mlpow = (lpow + mpow + 1) >> 1;
+			mlpos = 1<<mlpow;
+			mlerr = probe_at(n, mlpos);
+		} else if (lbound + 1 < mpivot) {
+			mlpow = 0;
+			mlpos = (lbound >> 1) + ((mpivot - 1) >> 1) + 1;
+			mlerr = probe_at(n, mlpos);
+		} else {
+			mlpow = 0;
+			mlpos = mpivot;
+			mlerr = merr;
+		}
+		if (upow - 1 > mpow) {
+			mupow = (upow + mpow + 1) >> 1;
+			mupos = (mupow == 32) ? 0 : 1<<mupow;
+			muerr = probe_at(n, mupos);
+		} else if (ubound - 1 > mpivot) {
+			mupow = 0;
+			mupos = ((ubound - 1) >> 1) + (mpivot >> 1) + 1;
+			muerr = probe_at(n, mupos);
+		} else {
+			mupow = 0;
+			mupos = mpivot;
+			muerr = merr;
+			break;
+		}
+		if (mlerr < muerr) {
+			/* ? ? + */
+			if (mlerr < merr) {
+				/* - 0 +  (Go down...) */
 				upow = mpow;
 				ubound = mpivot;
-				mpow = (lpow + mpow + 1) >> 1;
-				mpivot = 1<<mpow;
-				if (mpivot == lbound) {
-					merr = lerr;
-					break;
+				uerr = merr;
+				mpow = mlpow;
+				mpivot = mlpos;
+				merr = mlerr;
+				//printf("-- l1<<%u==%u, m1<<%u==%u\n", lpow, lbound, mpow, mpivot);
+			} else {
+				/* 0 - +  (Go in...) */
+				if (muerr < uerr) {
+					upow = mupow;
+					ubound = mupos;
+					uerr = muerr;
 				}
-				mdecerr = probe_below(n, mpivot);
-				merr = probe_at(n, mpivot);
-				if (mdecerr < merr) goto GO_DOWN;
-				mincerr = probe_above(n, mpivot);
-//				printf("-- l1<<%u==%u, m1<<%u==%u\n", lpow, lbound, mpow, mpivot);
-			} else {
-//				if (mdecerr == merr) puts("???");
-				/* - + 0 */
-//				printf("? {- + 0}\t(%u +/- 1)\n", mpivot);
-				break; /* a middle found */
+		//		if (mlerr < lerr) {
+					lpow = mlpow;
+					lbound = mlpos;
+					lerr = mlerr;
+		//		}
 			}
+			if (mpivot == lbound)
+				break;
 		} else {
-			if (merr <= mincerr) {
-//				if (merr == mincerr) puts("!!!");
-				/* + - 0 */
+			/* + ? ? */
+			if (merr <= muerr) {
+				/* + - 0  (Go in...) */
+				if (mlerr <= lerr) {
+					lpow = mlpow;
+					lbound = mlpos;
+					lerr = mlerr;
+				}
+		//		if (muerr <= uerr) {
+					upow = mupow;
+					ubound = mupos;
+					uerr = muerr;
+		//		}
 //				printf("! {+ - 0}\t(%u +/- 1)\n", mpivot);
-				break; /* a middle found */
 			} else {
-				/* + + 0 */
-				uerr = probe_at(n, ubound);
-			GO_UP:
+				/* + 0 -  (Go up...) */
 				lpow = mpow;
 				lbound = mpivot;
-				mpow = (upow + mpow + 1) >> 1;
-				mpivot = (mpow == 32) ? 0 : 1<<mpow;
-				if (mpivot == ubound) {
-					merr = uerr;
-					break;
-				}
-				mincerr = probe_above(n, mpivot);
-				merr = probe_at(n, mpivot);
-				if (merr > mincerr) goto GO_UP;
-				mdecerr = probe_below(n, mpivot);
-//				printf("++ u1<<%u==%u, m1<<%u==%u\n", upow, ubound, mpow, mpivot);
+				lerr = merr;
+				mpow = mupow;
+				mpivot = mupos;
+				merr = muerr;
+				//printf("++ u1<<%u==%u, m1<<%u==%u\n", upow, ubound, mpow, mpivot);
 			}
+			if (mpivot == ubound)
+				break;
 		}
-	RETEST:
-		// printf(", {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
-		if ((ubound - 1) <= mpivot) break;
-		if ((lbound + 1) >= mpivot) break;
+//		if (upow - mpow <= 1) break;
+//	RETEST:
+//		// printf(", {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+		if ((lbound + 1) >= mpivot && (ubound - 1) <= mpivot) break;
 	}
-//	printf(". {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+	//printf(". {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
 	if (lbound > mpivot) /* happens if there's only up-going */
 		lbound = mpivot;
-	if (ubound > (mpivot << 1)) /* trim upper bound */
-		ubound = mpivot << 1;
-	if (lbound < (mpivot >> 1)) /* trim lower bound */
-		lbound = mpivot >> 1;
+//	if (ubound > (mpivot << 1)) /* trim upper bound */
+//		ubound = mpivot << 1;
+//	if (lbound < mpivot - 1) /* trim lower bound */
+//		lbound = mpivot - 1;
 #if 0 //.
 		if (probe_posi(n, mpivot - 1, minmaxerr_y) < merr)
 
@@ -559,6 +567,9 @@ static int run_linear(uint32_t n) {
 #endif
 SEARCH:
 //	printf("L==%u, U==%u\n", lbound, ubound);
+	//if (ubound > 100000) lbound = ubound = 0;
+	//printf(". {l==%u, m==%u, u==%u}\n", lbound, mpivot, ubound);
+	//return test_linear(n, lbound >> 1, ubound);
 	return test_linear(n, lbound, ubound);
 }
 
