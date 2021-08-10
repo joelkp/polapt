@@ -101,6 +101,8 @@ double tryerr_y[TAB_LEN];
 double selerr_y[TAB_LEN];
 double minmaxerr_y = MAX_ERR;
 double trymaxerr_y = MAX_ERR;
+double stageminmaxerr_y[PDIM];
+int stageresult[PDIM];
 
 double scale_adj[PDIM] = {1.f, 1.f, 1.f};
 double tryscale_adj[PDIM];
@@ -181,6 +183,11 @@ static int compare_enderr_maxerr(double minerr) {
 	return compare_maxerr(minerr);
 }
 
+static inline void begin_stage(uint32_t n) {
+	stageminmaxerr_y[n] = MAX_ERR;
+	stageresult[n] = 0;
+}
+
 static inline void set_candidate(uint32_t n, double pos) {
 	trypos[n] = pos;
 }
@@ -192,7 +199,6 @@ static inline void set_candidate_int(uint32_t n, uint32_t pos) {
 static int try_candidate(int (*compare)(double minerr), double minerr) {
 	trymaxerr_y = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
-		double q = trypos[j];
 		tryscale_adj[j] = scale_adj[j] * trypos[j];
 	}
 	return compare(minerr);
@@ -249,26 +255,27 @@ static inline double probe_at(uint32_t n, double pos) {
 	return err;
 }
 
-static int run_one(uint32_t n, double pos) {
-	int found = 0;
+static double run_one(uint32_t n, double pos) {
 	set_candidate(n, pos);
-	if (try_candidate(compare_maxerr_enderr, minmaxerr_y) > 0) {
+	if (try_candidate(compare_maxerr_enderr, minmaxerr_y) >= 0) {
 		select_candidate();
-		found = 1;
+		stageresult[n] = 1;
 	}
-//	if (found)
-//		printf("*[%f]\n", selpos[n]);
-	return found;
+	if (trymaxerr_y < stageminmaxerr_y[n])
+		stageminmaxerr_y[n] = trymaxerr_y;
+	return trymaxerr_y;
 }
 
-static int run_subdivide(uint32_t n) {
+/*
+ * Subdivision testing algorithm. Looks for number between 0.0 and 1.0,
+ * halving the size of steps to take within the range until a number is
+ * chosen. May make roughly a hundred tests, before picking the number.
+ */
+static double run_subdivide(uint32_t n) {
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
-	/*
-	 * Find upper and lower bound for search.
-	 */
 	sub_bench_count = 0;
 	lpos = 0.f;
 	mpos = .5f;
@@ -336,18 +343,111 @@ static int run_subdivide(uint32_t n) {
 	return run_one(n, mpos);
 }
 
-static int recurse_linear(uint32_t j, uint32_t n) {
-	int found = 0;
-	if (j == 0) {
-		found = (run_subdivide(PDIM - n) > 0);
-	} else {
-		const uint32_t limit = loop_limits[PDIM - n + j];
-		for (uint32_t i = 0; i <= limit; ++i) {
-			set_candidate_int(PDIM - n + j, i);
-			if (recurse_linear(j - 1, n)) found = 1;
-		}
+static double recurse_subdivide(uint32_t m, uint32_t n);
+
+static inline double probe_at_recursive(uint32_t m, uint32_t n, double pos) {
+	uint32_t j = PDIM - n + m;
+	double err;
+	set_candidate(j, pos);
+	err = recurse_subdivide(m - 1, n);
+	if (stageresult[j - 1])
+		stageresult[j] = 1;
+	if (err < stageminmaxerr_y[j])
+		stageminmaxerr_y[j] = err;
+//	printf("newer subdivide\n\tmin err so far\t%e\n",
+//			stageminmaxerr_y[j]);
+	return err;
+}
+
+static double recurse_subdivide(uint32_t m, uint32_t n) {
+	uint32_t j = PDIM - n + m;
+	begin_stage(j);
+	if (m == 0) {
+		run_subdivide(j);
+		goto DONE;
 	}
-	return found;
+#if 1
+	const uint32_t limit = loop_limits[j];
+	for (uint32_t i = 0; i <= limit; ++i) {
+		set_candidate_int(j, i);
+		double err = recurse_subdivide(m - 1, n);
+		if (stageresult[j - 1])
+			stageresult[j] = 1;
+		if (err < stageminmaxerr_y[j])
+			stageminmaxerr_y[j] = err;
+		//printf("older loop\n\tmin err so far\t%e\n",
+		//		stageminmaxerr_y[j]);
+	}
+	//printf("\tdone\n");
+#else
+	/*
+	 * Subdivision testing algorithm, as in innermost
+	 * search except adapted for this recursive step.
+	 */
+	double lpos, mpos, upos;
+	double lerr, merr, uerr;
+	double mlpos, mupos;
+	double mlerr, muerr;
+	lpos = 0.f;
+	mpos = .5f;
+	upos = 1.f;
+	lerr = probe_at_recursive(m, n, lpos);
+	merr = probe_at_recursive(m, n, mpos);
+	uerr = probe_at_recursive(m, n, upos);
+	for (;;) {
+		mlpos = (lpos + mpos) * 0.5f;
+		mlerr = probe_at_recursive(m, n, mlpos);
+		mupos = (upos + mpos) * 0.5f;
+		muerr = probe_at_recursive(m, n, mupos);
+		if (mlerr < muerr) {
+			/* ? ? + */
+			if (mlerr < merr) {
+				/* - 0 +  (Go down...) */
+				upos = mpos;
+				uerr = merr;
+				mpos = mlpos;
+				merr = mlerr;
+			} else {
+				/* 0 - +  (Go in...) */
+				if (muerr < uerr) {
+					upos = mupos;
+					uerr = muerr;
+				}
+				lpos = mlpos;
+				lerr = mlerr;
+			}
+			if (mpos <= lpos + EPSILON) break;
+		} else {
+			/* + ? ? */
+			if (merr <= muerr) {
+				/* + - 0  (Go in...) */
+				if (mlerr <= lerr) {
+					lpos = mlpos;
+					lerr = mlerr;
+				}
+				upos = mupos;
+				uerr = muerr;
+			} else {
+				/* + 0 -  (Go up...) */
+				lpos = mpos;
+				lerr = merr;
+				mpos = mupos;
+				merr = muerr;
+			}
+			if (mpos >= upos - EPSILON) break;
+		}
+		if ((mpos >= upos - EPSILON) && (mpos <= lpos + EPSILON))
+			break;
+	}
+	set_candidate(j, mpos);
+	double err = recurse_subdivide(m - 1, n);
+	if (stageresult[j - 1])
+		stageresult[j] = 1;
+	if (err < stageminmaxerr_y[j])
+		stageminmaxerr_y[j] = err;
+#endif
+DONE:
+	return stageminmaxerr_y[j];
 }
 
 /*
@@ -359,12 +459,13 @@ static int run_pass(uint32_t n) {
 	for (uint32_t j = 0; j < PDIM; ++j)
 		set_candidate(j, 1.f);
 	if (n == 0) {
-		if (try_candidate(compare_maxerr, minmaxerr_y) > 0) {
+		if (try_candidate(compare_maxerr, minmaxerr_y) >= 0) {
 			select_candidate();
 			found = 1;
 		}
 	} else {
-		found = (recurse_linear(n - 1, n) > 0);
+		recurse_subdivide(n - 1, n);
+		found = stageresult[PDIM - n + (n - 1)];
 	}
 	if (found)
 		print_report();
