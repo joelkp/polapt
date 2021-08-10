@@ -78,7 +78,7 @@ static inline float moo_sine(float x) {
 #define RUN_TESTS       1
 
 /* Produce file suitable for gnuplot? */
-#define WRITE_PLOT_FILE 0
+#define WRITE_PLOT_FILE 1
 
 static inline TEST_T test_sin(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
@@ -222,7 +222,7 @@ static void print_report(void) {
 			minmaxerr_y, selerr_y[TAB_LEN - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
-		printf("%c==%.11e\t(%.11e * %.11e)\n",
+		printf("%c==%.20f\t(%.14f * %.14f)\n",
 				label, selscale_adj[j],
 				scale_adj[j], selpos[j]);
 	}
@@ -245,22 +245,11 @@ static const uint32_t loop_limits[PDIM] = {
 };
 
 uint32_t bench_count, sub_bench_count;
-static inline double probe_at(uint32_t n, double pos) {
-	double err;
+static double run_one(uint32_t n, double pos) {
 	++bench_count;
 	++sub_bench_count;
 	set_candidate(n, pos);
-	try_candidate(compare_maxerr, minmaxerr_y);
-	err = trymaxerr_y;
-	return err;
-}
-
-static double run_one(uint32_t n, double pos) {
-	set_candidate(n, pos);
-	if (try_candidate(compare_maxerr_enderr, minmaxerr_y) >= 0) {
-		select_candidate();
-		stageresult[n] = 1;
-	}
+	try_candidate(compare_maxerr_enderr, stageminmaxerr_y[n]);
 	if (trymaxerr_y < stageminmaxerr_y[n])
 		stageminmaxerr_y[n] = trymaxerr_y;
 	return trymaxerr_y;
@@ -272,22 +261,39 @@ static double run_one(uint32_t n, double pos) {
  * chosen. May make roughly a hundred tests, before picking the number.
  */
 static double run_subdivide(uint32_t n) {
+	const double weight = 0.5; // 5.0/6
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
 	sub_bench_count = 0;
 	lpos = 0.f;
-	mpos = .5f;
+	mpos = weight;
 	upos = 1.f;
-	lerr = probe_at(n, lpos);
-	merr = probe_at(n, mpos);
-	uerr = probe_at(n, upos);
+	lerr = run_one(n, lpos);
+	merr = run_one(n, mpos);
+	uerr = run_one(n, upos);
 	for (;;) {
-		mlpos = (lpos + mpos) * 0.5f;
-		mlerr = probe_at(n, mlpos);
-		mupos = (upos + mpos) * 0.5f;
-		muerr = probe_at(n, mupos);
+		for (;;) {
+			mlpos = lpos + (mpos - lpos) * weight;
+			mlerr = run_one(n, mlpos);
+			/* Go down (again)? Using a minimum of test calls. */
+			if (merr >= uerr || mlerr >= merr) break;
+			upos = mpos;
+			uerr = merr;
+			mpos = mlpos;
+			merr = mlerr;
+		}
+		for (;;) {
+			mupos = mpos + (upos - mpos) * weight;
+			muerr = run_one(n, mupos);
+			/* Go up (again)? Using a minimum of test calls. */
+			if (merr >= lerr || muerr >= merr) break;
+			lpos = mpos;
+			lerr = merr;
+			mpos = mupos;
+			merr = muerr;
+		}
 		if (mlerr < muerr) {
 			/* ? ? + */
 			if (mlerr < merr) {
@@ -303,10 +309,8 @@ static double run_subdivide(uint32_t n) {
 					upos = mupos;
 					uerr = muerr;
 				}
-		//		if (mlerr < lerr) {
-					lpos = mlpos;
-					lerr = mlerr;
-		//		}
+				lpos = mlpos;
+				lerr = mlerr;
 			}
 			if (mpos <= lpos + EPSILON) break;
 		} else {
@@ -317,10 +321,8 @@ static double run_subdivide(uint32_t n) {
 					lpos = mlpos;
 					lerr = mlerr;
 				}
-		//		if (muerr <= uerr) {
-					upos = mupos;
-					uerr = muerr;
-		//		}
+				upos = mupos;
+				uerr = muerr;
 //				printf("! {+ - 0}\t(%u +/- 1)\n", mpos);
 			} else {
 				/* + 0 -  (Go up...) */
@@ -335,17 +337,17 @@ static double run_subdivide(uint32_t n) {
 		if ((mpos >= upos - EPSILON) && (mpos <= lpos + EPSILON))
 			break;
 	}
-//	printf("SUB_BENCH %u\n", sub_bench_count);
-	//printf(". {l==%u, m==%u, u==%u}\n", lpos, mpivot, upos);
-//	double pos = mpos;
-//	if (uerr < merr) pos = upos;
-//	if (lerr < uerr) pos = lpos;
-	return run_one(n, mpos);
+	set_candidate(n, mpos);
+	if (try_candidate(compare_maxerr_enderr, minmaxerr_y) > 0) {
+		select_candidate();
+		stageresult[n] = 1;
+	}
+	return stageminmaxerr_y[n];
 }
 
 static double recurse_subdivide(uint32_t m, uint32_t n);
 
-static inline double probe_at_recursive(uint32_t m, uint32_t n, double pos) {
+static double recurse_one(uint32_t m, uint32_t n, double pos) {
 	uint32_t j = PDIM - n + m;
 	double err;
 	set_candidate(j, pos);
@@ -366,7 +368,7 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 		run_subdivide(j);
 		goto DONE;
 	}
-#if 1
+#if 0
 	const uint32_t limit = loop_limits[j];
 	for (uint32_t i = 0; i <= limit; ++i) {
 		set_candidate_int(j, i);
@@ -384,21 +386,38 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	 * Subdivision testing algorithm, as in innermost
 	 * search except adapted for this recursive step.
 	 */
+	const double weight = 0.5;
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
 	lpos = 0.f;
-	mpos = .5f;
+	mpos = weight;
 	upos = 1.f;
-	lerr = probe_at_recursive(m, n, lpos);
-	merr = probe_at_recursive(m, n, mpos);
-	uerr = probe_at_recursive(m, n, upos);
+	lerr = recurse_one(m, n, lpos);
+	merr = recurse_one(m, n, mpos);
+	uerr = recurse_one(m, n, upos);
 	for (;;) {
-		mlpos = (lpos + mpos) * 0.5f;
-		mlerr = probe_at_recursive(m, n, mlpos);
-		mupos = (upos + mpos) * 0.5f;
-		muerr = probe_at_recursive(m, n, mupos);
+		for (;;) {
+			mlpos = lpos + (mpos - lpos) * weight;
+			mlerr = recurse_one(m, n, mlpos);
+			/* Go down (again)? Using a minimum of test calls. */
+			if (merr >= uerr || mlerr >= merr) break;
+			upos = mpos;
+			uerr = merr;
+			mpos = mlpos;
+			merr = mlerr;
+		}
+		for (;;) {
+			mupos = mpos + (upos - mpos) * weight;
+			muerr = recurse_one(m, n, mupos);
+			/* Go up (again)? Using a minimum of test calls. */
+			if (merr >= lerr || muerr >= merr) break;
+			lpos = mpos;
+			lerr = merr;
+			mpos = mupos;
+			merr = muerr;
+		}
 		if (mlerr < muerr) {
 			/* ? ? + */
 			if (mlerr < merr) {
@@ -439,12 +458,6 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 		if ((mpos >= upos - EPSILON) && (mpos <= lpos + EPSILON))
 			break;
 	}
-	set_candidate(j, mpos);
-	double err = recurse_subdivide(m - 1, n);
-	if (stageresult[j - 1])
-		stageresult[j] = 1;
-	if (err < stageminmaxerr_y[j])
-		stageminmaxerr_y[j] = err;
 #endif
 DONE:
 	return stageminmaxerr_y[j];
