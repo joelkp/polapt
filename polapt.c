@@ -249,7 +249,7 @@ static double run_one(uint32_t n, double pos) {
 	++bench_count;
 	++sub_bench_count;
 	set_candidate(n, pos);
-	if (try_candidate(compare_maxerr_enderr, minmaxerr_y) > 0) {
+	if (try_candidate(compare_maxerr_enderr, stageminmaxerr_y[n]) > 0) {
 		select_candidate();
 		stageresult[n] = 1;
 	}
