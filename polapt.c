@@ -71,8 +71,8 @@ static inline float moo_sine(float x) {
 
 /* What to run? */
 #define TEST_Y test_sin
-#define GOOD_Y sinf
-#define TEST_T float
+#define GOOD_Y sin
+#define TEST_T double
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
@@ -278,7 +278,10 @@ static double run_subdivide(uint32_t n) {
 	 * Go up by big steps to find nice intial middle.
 	 */
 	while (uerr < muerr) {
-		muerr = run_one(n, (mupos = sqrt(mupos)));
+		double old_mupos = mupos;
+		mupos = sqrt(mupos);
+		if (mupos - old_mupos < EPSILON) break;
+		muerr = run_one(n, mupos);
 		lerr = mlerr; lpos = mlpos;
 		mlerr = merr; mlpos = mpos;
 		merr = muerr; mpos = mupos; /* current best */
@@ -287,7 +290,10 @@ static double run_subdivide(uint32_t n) {
 		lerr = mlerr; lpos = mlpos;
 		mlerr = merr; mlpos = mpos;
 		merr = muerr; mpos = mupos; /* current best */
-		muerr = run_one(n, (mupos = sqrt(mupos)));
+		double old_mupos = mupos;
+		mupos = sqrt(mupos);
+		if (mupos - old_mupos < EPSILON) break;
+		muerr = run_one(n, mupos);
 	} while (muerr < merr);
 	if (mlpos != mpos) {
 		lpos = mlpos; lerr = mlerr;
@@ -300,7 +306,10 @@ SEARCH_SIDES:
 	 * Search on the lower side of the middle.
 	 */
 	for (;;) {
-		mlerr = run_one(n, (mlpos = (lpos + mpos) * 0.5f));
+		double old_mlpos = mlpos;
+		mlpos = (lpos + mpos) * 0.5f;
+		if (fabs(old_mlpos - mlpos) < EPSILON) break;
+		mlerr = run_one(n, mlpos);
 		if (merr > mlerr) {
 			uerr = merr; upos = mpos;
 			merr = mlerr; mpos = mlpos; /* current best */
@@ -319,7 +328,10 @@ SEARCH_SIDES:
 	 * Search on the upper side of the middle.
 	 */
 	for (;;) {
-		muerr = run_one(n, (mupos = (upos + mpos) * 0.5f));
+		double old_mupos = mupos;
+		mupos = (upos + mpos) * 0.5f;
+		if (fabs(old_mupos - mupos) < EPSILON) break;
+		muerr = run_one(n, mupos);
 		if (merr > muerr) {
 			uerr = merr; upos = mpos;
 			merr = muerr; mpos = mupos; /* current best */
