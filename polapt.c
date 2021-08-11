@@ -71,8 +71,8 @@ static inline float moo_sine(float x) {
 
 /* What to run? */
 #define TEST_Y test_sin
-#define GOOD_Y sin
-#define TEST_T double
+#define GOOD_Y sinf
+#define TEST_T float
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
