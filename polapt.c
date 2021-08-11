@@ -189,7 +189,7 @@ static inline void begin_stage(uint32_t n) {
 }
 
 static inline void set_candidate(uint32_t n, double pos) {
-	trypos[n] = sqrt(pos);
+	trypos[n] = pos;//sqrt(pos);
 }
 
 static inline void set_candidate_int(uint32_t n, uint32_t pos) {
@@ -264,82 +264,82 @@ static double run_one(uint32_t n, double pos) {
  * chosen. May make roughly a hundred tests, before picking the number.
  */
 static double run_subdivide(uint32_t n) {
-	const double weight = 0.5; // 5.0/6
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
 	sub_bench_count = 0;
-	lpos = 0.f;
-	mpos = weight;
-	upos = 1.f;
-	lerr = run_one(n, lpos);
-	merr = run_one(n, mpos);
-	uerr = run_one(n, upos);
-	for (;;) {
-		for (;;) {
-			mlpos = lpos + (mpos - lpos) * weight;
-			mlerr = run_one(n, mlpos);
-			/* Go down (again)? Using a minimum of test calls. */
-			if (merr >= uerr || mlerr >= merr) break;
-			upos = mpos;
-			uerr = merr;
-			mpos = mlpos;
-			merr = mlerr;
-		}
-		for (;;) {
-			mupos = mpos + (upos - mpos) * weight;
-			muerr = run_one(n, mupos);
-			/* Go up (again)? Using a minimum of test calls. */
-			if (merr >= lerr || muerr >= merr) break;
-			lpos = mpos;
-			lerr = merr;
-			mpos = mupos;
-			merr = muerr;
-		}
-		if (mlerr < muerr) {
-			/* ? ? + */
-			if (mlerr < merr) {
-				/* - 0 +  (Go down...) */
-				upos = mpos;
-				uerr = merr;
-				mpos = mlpos;
-				merr = mlerr;
-				//printf("-- l1==%e, m1==%e\n", lpos, mpos);
-			} else {
-				/* 0 - +  (Go in...) */
-				if (muerr < uerr) {
-					upos = mupos;
-					uerr = muerr;
-				}
-				lpos = mlpos;
-				lerr = mlerr;
-			}
-			if (mpos <= lpos + EPSILON) break;
-		} else {
-			/* + ? ? */
-			if (merr <= muerr) {
-				/* + - 0  (Go in...) */
-				if (mlerr <= lerr) {
-					lpos = mlpos;
-					lerr = mlerr;
-				}
-				upos = mupos;
-				uerr = muerr;
-//				printf("! {+ - 0}\t(%u +/- 1)\n", mpos);
-			} else {
-				/* + 0 -  (Go up...) */
-				lpos = mpos;
-				lerr = merr;
-				mpos = mupos;
-				merr = muerr;
-				//printf("++ u1==%e, m1==%e\n", upos, mpos);
-			}
-			if (mpos >= upos - EPSILON) break;
-		}
-		if ((mpos >= upos - EPSILON) && (mpos <= lpos + EPSILON))
-			break;
+	lerr = run_one(n, (lpos = 0.0625f));
+	mlerr = lerr; mlpos = lpos;
+	merr = mlerr; mpos = mlpos;
+	muerr = merr; mupos = mpos;
+	uerr = run_one(n, (upos = 1.f));
+	uint32_t b4 = 0;
+	/*
+	 * Go up by big steps to find nice intial middle.
+	 */
+	while (uerr < muerr) {
+		muerr = run_one(n, (mupos = sqrt(mupos)));
+		lerr = mlerr; lpos = mlpos;
+		mlerr = merr; mlpos = mpos;
+		merr = muerr; mpos = mupos; /* current best */
 	}
+	do {
+		lerr = mlerr; lpos = mlpos;
+		mlerr = merr; mlpos = mpos;
+		merr = muerr; mpos = mupos; /* current best */
+		muerr = run_one(n, (mupos = sqrt(mupos)));
+	} while (muerr < merr);
+	if (mlpos != mpos) {
+		lpos = mlpos; lerr = mlerr;
+	} else {
+		mlpos = lpos; mlerr = lerr;
+	}
+	uerr = muerr; upos = mupos;
+SEARCH_SIDES:
+	/*
+	 * Search on the lower side of the middle.
+	 */
+	for (;;) {
+		++b4;
+		mlerr = run_one(n, (mlpos = (lpos + mpos) * 0.5f));
+		if (merr > mlerr) {
+			uerr = merr; upos = mpos;
+			merr = mlerr; mpos = mlpos; /* current best */
+			goto SEARCH_SIDES;
+		} else if (merr < mlerr) {
+			if (mlerr < lerr) {
+				lerr = mlerr; lpos = mlpos;
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	}
+	/*
+	 * Search on the upper side of the middle.
+	 */
+	for (;;) {
+		++b4;
+		muerr = run_one(n, (mupos = (upos + mpos) * 0.5f));
+		if (merr > muerr) {
+			uerr = merr; upos = mpos;
+			merr = muerr; mpos = mupos; /* current best */
+			goto SEARCH_SIDES;
+		} else if (merr < muerr) {
+			if (muerr < uerr) {
+				uerr = muerr; upos = mupos;
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	}
+	printf("\t%u\n", b4);
+	printf("iP: %e; %e; %e\n", lpos, mpos, upos);
+	printf(" E: %e; %e; %e\n", lerr, merr, uerr);
 	return stageminmaxerr_y[n];
 }
 
