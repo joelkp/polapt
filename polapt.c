@@ -192,10 +192,6 @@ static inline void set_candidate(uint32_t n, double pos) {
 	trypos[n] = pos;
 }
 
-static inline void set_candidate_int(uint32_t n, uint32_t pos) {
-	trypos[n] = (pos != 0) ? ((double) pos - 1 ) / ((double) pos) : 0.f;
-}
-
 static int try_candidate(int (*compare)(double minerr), double minerr) {
 	trymaxerr_y = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
@@ -238,12 +234,6 @@ static void apply_selected(void) {
 	}
 }
 
-static const uint32_t loop_limits[PDIM] = {
-	100000, //100000
-	1000,   //10000
-	100,    //1000
-};
-
 uint32_t bench_count, sub_bench_count;
 static double run_one(uint32_t n, double pos) {
 	++bench_count;
@@ -274,26 +264,10 @@ static double run_subdivide(uint32_t n) {
 	merr = run_one(n, mpos);
 	uerr = run_one(n, upos);
 	for (;;) {
-		for (;;) {
-			mlpos = lpos + (mpos - lpos) * weight;
-			mlerr = run_one(n, mlpos);
-			/* Go down (again)? Using a minimum of test calls. */
-			if (merr >= uerr || mlerr >= merr) break;
-			upos = mpos;
-			uerr = merr;
-			mpos = mlpos;
-			merr = mlerr;
-		}
-		for (;;) {
-			mupos = mpos + (upos - mpos) * weight;
-			muerr = run_one(n, mupos);
-			/* Go up (again)? Using a minimum of test calls. */
-			if (merr >= lerr || muerr >= merr) break;
-			lpos = mpos;
-			lerr = merr;
-			mpos = mupos;
-			merr = muerr;
-		}
+		mlpos = lpos + (mpos - lpos) * weight;
+		mlerr = run_one(n, mlpos);
+		mupos = mpos + (upos - mpos) * weight;
+		muerr = run_one(n, mupos);
 		if (mlerr < muerr) {
 			/* ? ? + */
 			if (mlerr < merr) {
@@ -302,7 +276,6 @@ static double run_subdivide(uint32_t n) {
 				uerr = merr;
 				mpos = mlpos;
 				merr = mlerr;
-				//printf("-- l1==%e, m1==%e\n", lpos, mpos);
 			} else {
 				/* 0 - +  (Go in...) */
 				if (muerr < uerr) {
@@ -323,14 +296,12 @@ static double run_subdivide(uint32_t n) {
 				}
 				upos = mupos;
 				uerr = muerr;
-//				printf("! {+ - 0}\t(%u +/- 1)\n", mpos);
 			} else {
 				/* + 0 -  (Go up...) */
 				lpos = mpos;
 				lerr = merr;
 				mpos = mupos;
 				merr = muerr;
-				//printf("++ u1==%e, m1==%e\n", upos, mpos);
 			}
 			if (mpos >= upos - EPSILON) break;
 		}
@@ -356,8 +327,6 @@ static double recurse_one(uint32_t m, uint32_t n, double pos) {
 		stageresult[j] = 1;
 	if (err < stageminmaxerr_y[j])
 		stageminmaxerr_y[j] = err;
-//	printf("newer subdivide\n\tmin err so far\t%e\n",
-//			stageminmaxerr_y[j]);
 	return err;
 }
 
@@ -368,20 +337,6 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 		run_subdivide(j);
 		goto DONE;
 	}
-#if 0
-	const uint32_t limit = loop_limits[j];
-	for (uint32_t i = 0; i <= limit; ++i) {
-		set_candidate_int(j, i);
-		double err = recurse_subdivide(m - 1, n);
-		if (stageresult[j - 1])
-			stageresult[j] = 1;
-		if (err < stageminmaxerr_y[j])
-			stageminmaxerr_y[j] = err;
-		//printf("older loop\n\tmin err so far\t%e\n",
-		//		stageminmaxerr_y[j]);
-	}
-	//printf("\tdone\n");
-#else
 	/*
 	 * Subdivision testing algorithm, as in innermost
 	 * search except adapted for this recursive step.
@@ -398,26 +353,10 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	merr = recurse_one(m, n, mpos);
 	uerr = recurse_one(m, n, upos);
 	for (;;) {
-		for (;;) {
-			mlpos = lpos + (mpos - lpos) * weight;
-			mlerr = recurse_one(m, n, mlpos);
-			/* Go down (again)? Using a minimum of test calls. */
-			if (merr >= uerr || mlerr >= merr) break;
-			upos = mpos;
-			uerr = merr;
-			mpos = mlpos;
-			merr = mlerr;
-		}
-		for (;;) {
-			mupos = mpos + (upos - mpos) * weight;
-			muerr = recurse_one(m, n, mupos);
-			/* Go up (again)? Using a minimum of test calls. */
-			if (merr >= lerr || muerr >= merr) break;
-			lpos = mpos;
-			lerr = merr;
-			mpos = mupos;
-			merr = muerr;
-		}
+		mlpos = lpos + (mpos - lpos) * weight;
+		mlerr = recurse_one(m, n, mlpos);
+		mupos = mpos + (upos - mpos) * weight;
+		muerr = recurse_one(m, n, mupos);
 		if (mlerr < muerr) {
 			/* ? ? + */
 			if (mlerr < merr) {
@@ -458,7 +397,6 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 		if ((mpos >= upos - EPSILON) && (mpos <= lpos + EPSILON))
 			break;
 	}
-#endif
 DONE:
 	return stageminmaxerr_y[j];
 }
