@@ -274,7 +274,6 @@ static double run_subdivide(uint32_t n) {
 	merr = mlerr; mpos = mlpos;
 	muerr = merr; mupos = mpos;
 	uerr = run_one(n, (upos = 1.f));
-	uint32_t b4 = 0;
 	/*
 	 * Go up by big steps to find nice intial middle.
 	 */
@@ -301,14 +300,13 @@ SEARCH_SIDES:
 	 * Search on the lower side of the middle.
 	 */
 	for (;;) {
-		++b4;
 		mlerr = run_one(n, (mlpos = (lpos + mpos) * 0.5f));
 		if (merr > mlerr) {
 			uerr = merr; upos = mpos;
 			merr = mlerr; mpos = mlpos; /* current best */
 			goto SEARCH_SIDES;
 		} else if (merr < mlerr) {
-			if (mlerr < lerr) {
+			if (mlerr <= lerr) {
 				lerr = mlerr; lpos = mlpos;
 			} else {
 				break;
@@ -321,14 +319,13 @@ SEARCH_SIDES:
 	 * Search on the upper side of the middle.
 	 */
 	for (;;) {
-		++b4;
 		muerr = run_one(n, (mupos = (upos + mpos) * 0.5f));
 		if (merr > muerr) {
 			uerr = merr; upos = mpos;
 			merr = muerr; mpos = mupos; /* current best */
 			goto SEARCH_SIDES;
 		} else if (merr < muerr) {
-			if (muerr < uerr) {
+			if (muerr <= uerr) {
 				uerr = muerr; upos = mupos;
 			} else {
 				break;
@@ -337,9 +334,8 @@ SEARCH_SIDES:
 			break;
 		}
 	}
-	printf("\t%u\n", b4);
-	printf("iP: %e; %e; %e\n", lpos, mpos, upos);
-	printf(" E: %e; %e; %e\n", lerr, merr, uerr);
+//	printf("iP: %e; %e; %e\n", lpos, mpos, upos);
+//	printf(" E: %e; %e; %e\n", lerr, merr, uerr);
 	return stageminmaxerr_y[n];
 }
 
