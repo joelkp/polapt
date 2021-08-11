@@ -314,14 +314,12 @@ SEARCH_SIDES:
 			uerr = merr; upos = mpos;
 			merr = mlerr; mpos = mlpos; /* current best */
 			goto SEARCH_SIDES;
-		} else if (merr < mlerr) {
+		} else {
 			if (mlerr <= lerr) {
 				lerr = mlerr; lpos = mlpos;
 			} else {
 				break;
 			}
-		} else {
-			break;
 		}
 	}
 	/*
@@ -336,14 +334,12 @@ SEARCH_SIDES:
 			uerr = merr; upos = mpos;
 			merr = muerr; mpos = mupos; /* current best */
 			goto SEARCH_SIDES;
-		} else if (merr < muerr) {
+		} else {
 			if (muerr <= uerr) {
 				uerr = muerr; upos = mupos;
 			} else {
 				break;
 			}
-		} else {
-			break;
 		}
 	}
 //	printf("iP: %e; %e; %e\n", lpos, mpos, upos);
