@@ -93,7 +93,7 @@ static inline TEST_T test_sin(TEST_T x, double scale_adj[]) {
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
-#define EPSILON 1.e-14
+#define EPSILON 1.e-20
 #define PDIM 3
 
 TEST_T good_y[TAB_LEN];
