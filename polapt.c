@@ -70,7 +70,7 @@ static inline float moo_sine(float x) {
  */
 
 /* What to run? */
-#define TEST_Y test_sin
+#define TEST_Y test_sin_t7_4v
 #define GOOD_Y sin
 #define TEST_T double
 
@@ -80,7 +80,7 @@ static inline float moo_sine(float x) {
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
 
-static inline TEST_T test_sin(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sin_t7_3v(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
 		-1.f/6 * scale_adj[0],
 		+1.f/120 * scale_adj[1],
@@ -90,11 +90,22 @@ static inline TEST_T test_sin(TEST_T x, double scale_adj[]) {
 	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
+static inline TEST_T test_sin_t7_4v(TEST_T x, double scale_adj[]) {
+	const TEST_T scale[] = {
+		+1.0 * scale_adj[0],
+		-1.f/6 * scale_adj[1],
+		+1.f/120 * scale_adj[2],
+		-1.f/5040 * scale_adj[3],
+	};
+	TEST_T x2 = x*x;
+	return x*scale[0] + x*x2*(scale[1] + x2*(scale[2] + x2*scale[3]));
+}
+
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define EPSILON 1.e-14
-#define PDIM 3
+#define PDIM 4
 
 TEST_T good_y[TAB_LEN];
 double tryerr_y[TAB_LEN];
@@ -104,7 +115,7 @@ double trymaxerr_y = MAX_ERR;
 double stageminmaxerr_y[PDIM];
 int stageresult[PDIM];
 
-double scale_adj[PDIM] = {1.f, 1.f, 1.f};
+double scale_adj[PDIM];
 double tryscale_adj[PDIM];
 double selscale_adj[PDIM];
 double trypos[PDIM];
@@ -234,10 +245,10 @@ static void apply_selected(void) {
 	}
 }
 
-uint32_t bench_count, sub_bench_count;
+//uint32_t bench_count, sub_bench_count;
 static double run_one(uint32_t n, double pos) {
-	++bench_count;
-	++sub_bench_count;
+	//++bench_count;
+	//++sub_bench_count;
 	set_candidate(n, pos);
 	try_candidate(compare_maxerr_enderr, stageminmaxerr_y[n]);
 	if (trymaxerr_y < stageminmaxerr_y[n])
@@ -256,7 +267,7 @@ static double run_subdivide(uint32_t n) {
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
-	sub_bench_count = 0;
+	//sub_bench_count = 0;
 	lpos = 0.f;
 	mpos = weight;
 	upos = 1.f;
@@ -427,6 +438,8 @@ int main(void) {
 #if WRITE_PLOT_FILE
 	FILE *f = fopen("plot.txt", "w");
 #endif
+	for (uint32_t j = 0; j < PDIM; ++j)
+		scale_adj[j] = 1.f;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		double x = (i * 1.f/end - 0.5f);
 		good_y[i] = GOOD_Y(x * M_PI);
@@ -447,6 +460,6 @@ int main(void) {
 	}
 	fclose(f);
 #endif
-	printf("BENCH %u\n", bench_count);
+	//printf("BENCH %u\n", bench_count);
 	return 0;
 }
