@@ -370,7 +370,7 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 		run_subdivide(j);
 		goto DONE;
 	}
-#if 1
+#if 0
 	const uint32_t limit = loop_limits[j];
 	for (uint32_t i = 0; i <= limit; ++i) {
 		set_candidate_int(j, i);
@@ -388,61 +388,83 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	 * Subdivision testing algorithm, as in innermost
 	 * search except adapted for this recursive step.
 	 */
-	const double weight = (5.0/6);
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
-	lpos = 0.f;
-	mpos = weight;
-	upos = 1.f;
-	lerr = recurse_one(m, n, lpos);
-	merr = recurse_one(m, n, mpos);
-	uerr = recurse_one(m, n, upos);
-	for (;;) {
-		mlpos = lpos + (mpos - lpos) * weight;
-		mlerr = recurse_one(m, n, mlpos);
-		mupos = mpos + (upos - mpos) * weight;
+	sub_bench_count = 0;
+	lerr = recurse_one(m, n, (lpos = 0.0625f));
+	mlerr = lerr; mlpos = lpos;
+	merr = mlerr; mpos = mlpos;
+	muerr = merr; mupos = mpos;
+	uerr = recurse_one(m, n, (upos = 1.f));
+	/*
+	 * Go up by big steps to find nice intial middle.
+	 */
+	while (uerr < muerr) {
+		double old_mupos = mupos;
+		mupos = sqrt(mupos);
+		if (mupos - old_mupos < EPSILON) break;
 		muerr = recurse_one(m, n, mupos);
-		if (mlerr < muerr) {
-			/* ? ? + */
-			if (mlerr < merr) {
-				/* - 0 +  (Go down...) */
-				upos = mpos;
-				uerr = merr;
-				mpos = mlpos;
-				merr = mlerr;
-			} else {
-				/* 0 - +  (Go in...) */
-				if (muerr < uerr) {
-					upos = mupos;
-					uerr = muerr;
-				}
-				lpos = mlpos;
-				lerr = mlerr;
-			}
-			if (mpos <= lpos + EPSILON) break;
+		lerr = mlerr; lpos = mlpos;
+		mlerr = merr; mlpos = mpos;
+		merr = muerr; mpos = mupos; /* current best */
+	}
+	do {
+		lerr = mlerr; lpos = mlpos;
+		mlerr = merr; mlpos = mpos;
+		merr = muerr; mpos = mupos; /* current best */
+		double old_mupos = mupos;
+		mupos = sqrt(mupos);
+		if (mupos - old_mupos < EPSILON) break;
+		muerr = recurse_one(m, n, mupos);
+	} while (muerr < merr);
+	if (mlpos != mpos) {
+		lpos = mlpos; lerr = mlerr;
+	} else {
+		mlpos = lpos; mlerr = lerr;
+	}
+	uerr = muerr; upos = mupos;
+SEARCH_SIDES:
+	/*
+	 * Search on the lower side of the middle.
+	 */
+	for (;;) {
+		double old_mlpos = mlpos;
+		mlpos = (lpos + mpos) * 0.5f;
+		if (fabs(old_mlpos - mlpos) < EPSILON) break;
+		mlerr = recurse_one(m, n, mlpos);
+		if (merr > mlerr) {
+			uerr = merr; upos = mpos;
+			merr = mlerr; mpos = mlpos; /* current best */
+			goto SEARCH_SIDES;
 		} else {
-			/* + ? ? */
-			if (merr <= muerr) {
-				/* + - 0  (Go in...) */
-				if (mlerr <= lerr) {
-					lpos = mlpos;
-					lerr = mlerr;
-				}
-				upos = mupos;
-				uerr = muerr;
+			if (mlerr <= lerr) {
+				lerr = mlerr; lpos = mlpos;
 			} else {
-				/* + 0 -  (Go up...) */
-				lpos = mpos;
-				lerr = merr;
-				mpos = mupos;
-				merr = muerr;
+				break;
 			}
-			if (mpos >= upos - EPSILON) break;
 		}
-		if ((mpos >= upos - EPSILON) && (mpos <= lpos + EPSILON))
-			break;
+	}
+	/*
+	 * Search on the upper side of the middle.
+	 */
+	for (;;) {
+		double old_mupos = mupos;
+		mupos = (upos + mpos) * 0.5f;
+		if (fabs(old_mupos - mupos) < EPSILON) break;
+		muerr = recurse_one(m, n, mupos);
+		if (merr > muerr) {
+			uerr = merr; upos = mpos;
+			merr = muerr; mpos = mupos; /* current best */
+			goto SEARCH_SIDES;
+		} else {
+			if (muerr <= uerr) {
+				uerr = muerr; upos = mupos;
+			} else {
+				break;
+			}
+		}
 	}
 #endif
 DONE:
