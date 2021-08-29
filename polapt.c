@@ -273,10 +273,22 @@ static double run_subdivide(uint32_t n) {
 	sub_bench_count = 0;
 	lpos = 0.f;
 	mpos = 1.f;
-	upos = 4.f;
+	upos = 2.f;
 	lerr = run_one(n, lpos);
 	merr = run_one(n, mpos);
 	uerr = run_one(n, upos);
+	/* Find upper bound by going up through squaring. */
+	while (uerr < merr) {
+		if (merr < lerr) {
+			lpos = mpos;
+			lerr = merr;
+		}
+		mpos = upos;
+		merr = uerr;
+		upos *= upos;
+		uerr = run_one(n, upos);
+	}
+	/* Move towards bottom of error curve valley or slope. */
 	for (;;) {
 		mlpos = moved_pos(lpos, mpos);
 		mlerr = run_one(n, mlpos);
@@ -362,10 +374,22 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	double mlerr, muerr;
 	lpos = 0.f;
 	mpos = 1.f;
-	upos = 4.f;
+	upos = 2.f;
 	lerr = recurse_one(m, n, lpos);
 	merr = recurse_one(m, n, mpos);
 	uerr = recurse_one(m, n, upos);
+	/* Find upper bound by going up through squaring. */
+	while (uerr < merr) {
+		if (merr < lerr) {
+			lpos = mpos;
+			lerr = merr;
+		}
+		mpos = upos;
+		merr = uerr;
+		upos *= upos;
+		uerr = recurse_one(m, n, upos);
+	}
+	/* Move towards bottom of error curve valley or slope. */
 	for (;;) {
 		mlpos = moved_pos(lpos, mpos);
 		mlerr = recurse_one(m, n, mlpos);
