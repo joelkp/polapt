@@ -245,10 +245,14 @@ static void apply_selected(void) {
 	}
 }
 
-//uint32_t bench_count, sub_bench_count;
+static inline double moved_pos(double from, double to) {
+	return (from + to + to + to) * 0.25;
+}
+
+uint32_t bench_count, sub_bench_count;
 static double run_one(uint32_t n, double pos) {
-	//++bench_count;
-	//++sub_bench_count;
+	++bench_count;
+	++sub_bench_count;
 	set_candidate(n, pos);
 	try_candidate(compare_maxerr_enderr, stageminmaxerr_y[n]);
 	if (trymaxerr_y < stageminmaxerr_y[n])
@@ -262,22 +266,21 @@ static double run_one(uint32_t n, double pos) {
  * chosen. May make roughly a hundred tests, before picking the number.
  */
 static double run_subdivide(uint32_t n) {
-	const double weight = 0.5; // 5.0/6
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
-	//sub_bench_count = 0;
+	sub_bench_count = 0;
 	lpos = 0.f;
-	mpos = weight;
-	upos = 1.f;
+	mpos = 1.f;
+	upos = 4.f;
 	lerr = run_one(n, lpos);
 	merr = run_one(n, mpos);
 	uerr = run_one(n, upos);
 	for (;;) {
-		mlpos = lpos + (mpos - lpos) * weight;
+		mlpos = moved_pos(lpos, mpos);
 		mlerr = run_one(n, mlpos);
-		mupos = mpos + (upos - mpos) * weight;
+		mupos = moved_pos(upos, mpos);
 		muerr = run_one(n, mupos);
 		if (mlerr < muerr) {
 			/* ? ? + */
@@ -324,6 +327,7 @@ static double run_subdivide(uint32_t n) {
 		select_candidate();
 		stageresult[n] = 1;
 	}
+	//printf("(SUB BENCH %u)\n", sub_bench_count);
 	return stageminmaxerr_y[n];
 }
 
@@ -352,21 +356,20 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	 * Subdivision testing algorithm, as in innermost
 	 * search except adapted for this recursive step.
 	 */
-	const double weight = 0.5;
 	double lpos, mpos, upos;
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
 	lpos = 0.f;
-	mpos = weight;
-	upos = 1.f;
+	mpos = 1.f;
+	upos = 4.f;
 	lerr = recurse_one(m, n, lpos);
 	merr = recurse_one(m, n, mpos);
 	uerr = recurse_one(m, n, upos);
 	for (;;) {
-		mlpos = lpos + (mpos - lpos) * weight;
+		mlpos = moved_pos(lpos, mpos);
 		mlerr = recurse_one(m, n, mlpos);
-		mupos = mpos + (upos - mpos) * weight;
+		mupos = moved_pos(upos, mpos);
 		muerr = recurse_one(m, n, mupos);
 		if (mlerr < muerr) {
 			/* ? ? + */
@@ -460,6 +463,6 @@ int main(void) {
 	}
 	fclose(f);
 #endif
-	//printf("BENCH %u\n", bench_count);
+	printf("BENCH %u\n", bench_count);
 	return 0;
 }
