@@ -18,61 +18,39 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-#ifndef M_PI
-# define M_PI 3.14159265358979323846
-#endif
+#define PI 3.14159265358979323846
 
-/*
- * Some polynomials for testing purposes.
- */
-
-/* max error: 1.388788e-05
-   (tweaked manually using graph plot program) */
-static inline float SGS_sinf_t7_old(float x) {
-	const float scale7 = -1.f/5040 * 29.f/30;
-	float x2 = x*x;
-	return x + x*x2*(-1.f/6 + x2*(1.f/120 + x2*scale7));
+static inline double sqrtp1(double x) {
+	return sqrt(x + 1.0);
 }
 
-/* max error: 3.576279e-07
-   (tweaked manually using graph plot program) */
-static inline float SGS_sinf_t9_old(float x) {
-	const float scale9 = 1.f/362880 * 44.f/45;
-	float x2 = x*x;
-	return x + x*x2*(-1.f/6 + x2*(1.f/120 + x2*(-1.f/5040 + x2*scale9)));
+static inline float sqrtp1f(float x) {
+	return sqrtf(x + 1.0);
 }
 
-/* max error: 1.788139e-07
-   https://web.archive.org/web/20200628195036/http://mooooo.ooo/chebyshev-sine-approximation/ */
-static inline float moo_sine(float x) {
-	const float coeffs[] = {
-		-0.10132118f,          // x
-		+0.0066208798f,        // x^3
-		-0.00017350505f,       // x^5
-		+0.0000025222919f,     // x^7
-		-0.000000023317787f,   // x^9
-		+0.00000000013291342f, // x^11
-	};
-	float pi_major = 3.1415927f;
-	float pi_minor = -0.00000008742278f;
-	float x2 = x*x;
-	float p11 = coeffs[5];
-	float p9  = p11*x2 + coeffs[4];
-	float p7  = p9*x2  + coeffs[3];
-	float p5  = p7*x2  + coeffs[2];
-	float p3  = p5*x2  + coeffs[1];
-	float p1  = p3*x2  + coeffs[0];
-	return (x - pi_major - pi_minor) * (x + pi_major + pi_minor) * p1 * x;
+static inline double srs(double x) {
+	x = sin(x);
+	return x >= 0.f ? sqrt(x) : -sqrt(-x);
 }
+
+static inline float srsf(float x) {
+	x = sinf(x);
+	return x >= 0.f ? sqrtf(x) : -sqrtf(-x);
+}
+
+#include "polapt-good_y.h"
 
 /*
  * The program.
  */
 
 /* What to run? */
+#define SUBT_X 0.5f
+#define MULT_X PI
 #define TEST_Y test_sin_t7_4v
 #define GOOD_Y sin
 #define TEST_T double
+#define TEST_C compare_maxerr_enderr
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
@@ -80,6 +58,9 @@ static inline float moo_sine(float x) {
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
 
+//#include "polapt-testcurves.h"
+
+/* -0.5, *PI */
 static inline TEST_T test_sin_t7_3v(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
 		-1.f/6 * scale_adj[0],
@@ -90,16 +71,39 @@ static inline TEST_T test_sin_t7_3v(TEST_T x, double scale_adj[]) {
 	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
+/* -0.5, *PI */
 static inline TEST_T test_sin_t7_4v(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+1.0 * scale_adj[0],
+		+1.f * scale_adj[0],
 		-1.f/6 * scale_adj[1],
 		+1.f/120 * scale_adj[2],
 		-1.f/5040 * scale_adj[3],
 	};
 	TEST_T x2 = x*x;
-	return x*scale[0] + x*x2*(scale[1] + x2*(scale[2] + x2*scale[3]));
+	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
 }
+
+/* -0.5, *2.0 */
+static inline TEST_T test_sqrtp1(TEST_T x, double scale_adj[]) {
+	const TEST_T scale[] = {
+		+1.f/2 * scale_adj[0],
+		-1.f/8 * scale_adj[1],
+		+1.f/16 * scale_adj[2],
+		-5.f/128 * scale_adj[3],
+	};
+	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
+}
+
+/*static inline TEST_T test_srs_jkp_4v(TEST_T x, double scale_adj[]) {
+	const TEST_T scale[] = {
+		+2.f * scale_adj[0],
+		-12.f/6 * scale_adj[1],
+		+48.f/120 * scale_adj[2],
+		-3.f/5040 * scale_adj[3],
+	};
+	TEST_T x2 = x*x;
+	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
+}*/
 
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
@@ -126,8 +130,8 @@ double selpos[PDIM];
  */
 static int compare_enderr(double minerr) {
 	uint32_t i = TAB_LEN - 1;
-	double x = (1.f - 0.5f);
-	double err = TEST_Y(x * M_PI, tryscale_adj) - good_y[i];
+	double x = (1.f - SUBT_X);
+	double err = TEST_Y(x * MULT_X, tryscale_adj) - good_y[i];
 	double abserr = fabs(err);
 	minerr = fabs(minerr);
 	tryerr_y[i] = err;
@@ -144,8 +148,8 @@ static int compare_enderr(double minerr) {
 static int compare_maxerr(double minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - 0.5f);
-		double err = TEST_Y(x * M_PI, tryscale_adj) - good_y[i];
+		double x = (i * 1.f/end - SUBT_X);
+		double err = TEST_Y(x * MULT_X, tryscale_adj) - good_y[i];
 		double abserr = fabs(err);
 		tryerr_y[i] = err;
 		if (abserr > trymaxerr_y)
@@ -165,8 +169,8 @@ static int compare_maxerr(double minerr) {
 static int compare_maxerr_enderr(double minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - 0.5f);
-		double err = TEST_Y(x * M_PI, tryscale_adj) - good_y[i];
+		double x = (i * 1.f/end - SUBT_X);
+		double err = TEST_Y(x * MULT_X, tryscale_adj) - good_y[i];
 		double abserr = fabs(err);
 		tryerr_y[i] = err;
 		if (abserr > trymaxerr_y)
@@ -246,7 +250,7 @@ static void apply_selected(void) {
 }
 
 static inline double moved_pos(double from, double to) {
-	return (from + to + to + to) * 0.25;
+	return (from + to) * 0.5;
 }
 
 uint32_t bench_count, sub_bench_count;
@@ -254,7 +258,7 @@ static double run_one(uint32_t n, double pos) {
 	++bench_count;
 	++sub_bench_count;
 	set_candidate(n, pos);
-	try_candidate(compare_maxerr_enderr, stageminmaxerr_y[n]);
+	try_candidate(TEST_C, stageminmaxerr_y[n]);
 	if (trymaxerr_y < stageminmaxerr_y[n])
 		stageminmaxerr_y[n] = trymaxerr_y;
 	return trymaxerr_y;
@@ -335,7 +339,7 @@ static double run_subdivide(uint32_t n) {
 			break;
 	}
 	set_candidate(n, mpos);
-	if (try_candidate(compare_maxerr_enderr, minmaxerr_y) > 0) {
+	if (try_candidate(TEST_C, minmaxerr_y) >= 0) {
 		select_candidate();
 		stageresult[n] = 1;
 	}
@@ -468,21 +472,21 @@ int main(void) {
 	for (uint32_t j = 0; j < PDIM; ++j)
 		scale_adj[j] = 1.f;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - 0.5f);
-		good_y[i] = GOOD_Y(x * M_PI);
+		double x = (i * 1.f/end - SUBT_X);
+		good_y[i] = GOOD_Y(x * MULT_X);
 		selerr_y[i] = MAX_ERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
 #if RUN_TESTS
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
-		if (n < PDIM)
-			apply_selected();
+//		if (n < PDIM)
+//			apply_selected();
 	}
 #endif
 #if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - 0.5f);
+		double x = (i * 1.f/end - SUBT_X);
 		fprintf(f, "%.11f\t%.11f\n", x, selerr_y[i]);
 	}
 	fclose(f);

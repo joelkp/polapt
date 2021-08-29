@@ -12,5 +12,5 @@ clean:
 $(BIN): $(OBJ)
 	$(CC) $(OBJ) $(LFLAGS) -o $(BIN)
 
-polapt.o: polapt.c
+polapt.o: polapt.c polapt-*.h
 	$(CC) -c $(CFLAGS) polapt.c
