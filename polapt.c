@@ -45,10 +45,9 @@ static inline float srsf(float x) {
  */
 
 /* What to run? */
-#define SUBT_X 0.f
-#define MULT_X 1.f
-#define TEST_Y test_sqrt
-#define GOOD_Y sqrt
+#define TEST_X(x) ((x - 0.5f) * PI)
+#define TEST_Y test_sin_t7_4v
+#define GOOD_Y sin
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
 
@@ -143,8 +142,8 @@ double selpos[PDIM];
  */
 static int compare_enderr(double minerr) {
 	uint32_t i = TAB_LEN - 1;
-	double x = (1.f - SUBT_X);
-	double err = TEST_Y(x * MULT_X, tryscale_adj) - good_y[i];
+	double x = 1.f;
+	double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 	double abserr = fabs(err);
 	minerr = fabs(minerr);
 	tryerr_y[i] = err;
@@ -161,8 +160,8 @@ static int compare_enderr(double minerr) {
 static int compare_maxerr(double minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - SUBT_X);
-		double err = TEST_Y(x * MULT_X, tryscale_adj) - good_y[i];
+		double x = i * 1.f/end;
+		double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 		double abserr = fabs(err);
 		tryerr_y[i] = err;
 		if (abserr > trymaxerr_y)
@@ -182,8 +181,8 @@ static int compare_maxerr(double minerr) {
 static int compare_maxerr_enderr(double minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - SUBT_X);
-		double err = TEST_Y(x * MULT_X, tryscale_adj) - good_y[i];
+		double x = i * 1.f/end;
+		double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 		double abserr = fabs(err);
 		tryerr_y[i] = err;
 		if (abserr > trymaxerr_y)
@@ -507,22 +506,22 @@ int main(void) {
 	for (uint32_t j = 0; j < PDIM; ++j)
 		scale_adj[j] = 1.f;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - SUBT_X);
-		good_y[i] = GOOD_Y(x * MULT_X);
+		double x = i * 1.f/end;
+		good_y[i] = GOOD_Y(TEST_X(x));
 		selerr_y[i] = MAX_ERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
 #if RUN_TESTS
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
-//		if (n < PDIM)
-//			apply_selected();
+		if (n < PDIM)
+			apply_selected();
 	}
 #endif
 #if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = (i * 1.f/end - SUBT_X);
-		fprintf(f, "%.11f\t%.11f\n", x, selerr_y[i]);
+		double x = i * 1.f/end;
+		fprintf(f, "%.11f\t%.11f\n", TEST_X(x), selerr_y[i]);
 	}
 	fclose(f);
 #endif
