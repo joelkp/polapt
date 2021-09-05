@@ -45,9 +45,9 @@ static inline float srsf(float x) {
  */
 
 /* What to run? */
-#define TEST_X(x) ((x - 0.5f) * PI)
-#define TEST_Y test_sin_t7_4v
-#define GOOD_Y sin
+#define TEST_X(x) ((x - 0.5f) * 2.f)
+#define TEST_Y test_fabs_d16
+#define GOOD_Y fabs
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
 
@@ -57,7 +57,7 @@ static inline float srsf(float x) {
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
 
-//#include "polapt-testcurves.h"
+#include "polapt-test_y.h"
 
 /* -0.5, *PI */
 static inline TEST_T test_sin_t7_3v(TEST_T x, double scale_adj[]) {
@@ -92,30 +92,6 @@ static inline TEST_T test_sqrtp1_t4(TEST_T x, double scale_adj[]) {
 	};
 	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
 }
-
-/* -0.0, *1.0 */
-static inline TEST_T test_sqrt(TEST_T x, double scale_adj[]) {
-	const TEST_T scale[] = {
-		+24.344885f/6 * scale_adj[0],
-		-58.344885f/6 * scale_adj[1],
-		+67.344885f/6 * scale_adj[2],
-		-27.344885f/6 * scale_adj[3],
-	};
-	TEST_T x2 = x*x;
-	TEST_T xa = fabs(x);
-	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
-}
-
-/*static inline TEST_T test_srs_jkp_4v(TEST_T x, double scale_adj[]) {
-	const TEST_T scale[] = {
-		+2.f * scale_adj[0],
-		-12.f/6 * scale_adj[1],
-		+48.f/120 * scale_adj[2],
-		-3.f/5040 * scale_adj[3],
-	};
-	TEST_T x2 = x*x;
-	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
-}*/
 
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
@@ -514,8 +490,8 @@ int main(void) {
 #if RUN_TESTS
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
-		if (n < PDIM)
-			apply_selected();
+//		if (n < PDIM)
+//			apply_selected();
 	}
 #endif
 #if WRITE_PLOT_FILE

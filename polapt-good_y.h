@@ -93,7 +93,7 @@ static inline float sin_simple2010(float x) {
  *
  * max error: 9.937980e-02
  */
-static inline float simple_srsf(float x) {
+static inline float simple_srsf_d4(float x) {
 	const float scale[] = {
 		+21.0/6  * 1.00855031486950772112,
 		-44.f/7  * 1.00855031486950772112,
@@ -112,7 +112,7 @@ static inline float simple_srsf(float x) {
  *
  * max error: 6.421521e-02
  */
-static inline float SGS_sqrtf_r1(float x) {
+static inline float SGS_sqrtf_r1_d4(float x) {
 	const float scale[] = {
 		+24.344885f/6,
 		-58.344885f/6,
