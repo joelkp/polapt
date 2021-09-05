@@ -70,6 +70,7 @@ static inline float moo_sine(float x) {
  */
 
 /* What to run? */
+#define TEST_X(x) (x * M_PI)
 #define TEST_Y test_sin_t7_4v
 #define GOOD_Y sin
 #define TEST_T double
@@ -127,7 +128,7 @@ double selpos[PDIM];
 static int compare_enderr(double minerr) {
 	uint32_t i = TAB_LEN - 1;
 	double x = (1.f - 0.5f);
-	double err = TEST_Y(x * M_PI, tryscale_adj) - good_y[i];
+	double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 	double abserr = fabs(err);
 	minerr = fabs(minerr);
 	tryerr_y[i] = err;
@@ -145,7 +146,7 @@ static int compare_maxerr(double minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		double x = (i * 1.f/end - 0.5f);
-		double err = TEST_Y(x * M_PI, tryscale_adj) - good_y[i];
+		double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 		double abserr = fabs(err);
 		tryerr_y[i] = err;
 		if (abserr > trymaxerr_y)
@@ -166,7 +167,7 @@ static int compare_maxerr_enderr(double minerr) {
 	minerr = fabs(minerr);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		double x = (i * 1.f/end - 0.5f);
-		double err = TEST_Y(x * M_PI, tryscale_adj) - good_y[i];
+		double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 		double abserr = fabs(err);
 		tryerr_y[i] = err;
 		if (abserr > trymaxerr_y)
@@ -442,7 +443,7 @@ int main(void) {
 		scale_adj[j] = 1.f;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		double x = (i * 1.f/end - 0.5f);
-		good_y[i] = GOOD_Y(x * M_PI);
+		good_y[i] = GOOD_Y(TEST_X(x));
 		selerr_y[i] = MAX_ERR;
 	}
 	run_pass(0); /* also print stats for unmodified polynomial */
@@ -456,7 +457,7 @@ int main(void) {
 #if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		double x = (i * 1.f/end - 0.5f);
-		fprintf(f, "%.11f\t%.11f\n", x, selerr_y[i]);
+		fprintf(f, "%.11f\t%.11f\n", TEST_X(x), selerr_y[i]);
 	}
 	fclose(f);
 #endif
