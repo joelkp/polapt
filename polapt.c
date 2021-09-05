@@ -45,10 +45,10 @@ static inline float srsf(float x) {
  */
 
 /* What to run? */
-#define SUBT_X 0.5f
-#define MULT_X PI
-#define TEST_Y test_sin_t7_4v
-#define GOOD_Y sin
+#define SUBT_X 0.f
+#define MULT_X 1.f
+#define TEST_Y test_sqrt
+#define GOOD_Y sqrt
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
 
@@ -84,7 +84,7 @@ static inline TEST_T test_sin_t7_4v(TEST_T x, double scale_adj[]) {
 }
 
 /* -0.5, *2.0 */
-static inline TEST_T test_sqrtp1(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sqrtp1_t4(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
 		+1.f/2 * scale_adj[0],
 		-1.f/8 * scale_adj[1],
@@ -92,6 +92,19 @@ static inline TEST_T test_sqrtp1(TEST_T x, double scale_adj[]) {
 		-5.f/128 * scale_adj[3],
 	};
 	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
+}
+
+/* -0.0, *1.0 */
+static inline TEST_T test_sqrt(TEST_T x, double scale_adj[]) {
+	const TEST_T scale[] = {
+		+24.344885f/6 * scale_adj[0],
+		-58.344885f/6 * scale_adj[1],
+		+67.344885f/6 * scale_adj[2],
+		-27.344885f/6 * scale_adj[3],
+	};
+	TEST_T x2 = x*x;
+	TEST_T xa = fabs(x);
+	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
 }
 
 /*static inline TEST_T test_srs_jkp_4v(TEST_T x, double scale_adj[]) {
@@ -275,12 +288,23 @@ static double run_subdivide(uint32_t n) {
 	double mlpos, mupos;
 	double mlerr, muerr;
 	sub_bench_count = 0;
-	lpos = 0.f;
+	lpos = .5f;
 	mpos = 1.f;
 	upos = 2.f;
 	lerr = run_one(n, lpos);
 	merr = run_one(n, mpos);
 	uerr = run_one(n, upos);
+	/* Find lower bound by going down through squaring. */
+	while (lerr < merr) {
+		if (merr < uerr) {
+			upos = mpos;
+			uerr = merr;
+		}
+		mpos = lpos;
+		merr = lerr;
+		lpos *= lpos;
+		lerr = run_one(n, lpos);
+	}
 	/* Find upper bound by going up through squaring. */
 	while (uerr < merr) {
 		if (merr < lerr) {
@@ -376,12 +400,23 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	double lerr, merr, uerr;
 	double mlpos, mupos;
 	double mlerr, muerr;
-	lpos = 0.f;
+	lpos = .5f;
 	mpos = 1.f;
 	upos = 2.f;
 	lerr = recurse_one(m, n, lpos);
 	merr = recurse_one(m, n, mpos);
 	uerr = recurse_one(m, n, upos);
+	/* Find lower bound by going down through squaring. */
+	while (lerr < merr) {
+		if (merr < uerr) {
+			upos = mpos;
+			uerr = merr;
+		}
+		mpos = lpos;
+		merr = lerr;
+		lpos *= lpos;
+		lerr = recurse_one(m, n, lpos);
+	}
 	/* Find upper bound by going up through squaring. */
 	while (uerr < merr) {
 		if (merr < lerr) {

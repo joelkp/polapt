@@ -103,3 +103,22 @@ static inline float simple_srsf(float x) {
 	float xa = fabs(x);
 	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
 }
+
+/*
+ * Approximation of sqrtf(x) and -sqrtf(-x) within input range -1 <= x <= 1.
+ * Simple polynomial which looks too smooth near 0, and more angular further
+ * away from 0, so that a line from a sine half is given four angle changes,
+ * with a broad flat peak. Resulting harmonics decay faster than for sqrt().
+ *
+ * max error: 6.421521e-02
+ */
+static inline float SGS_sqrtf_r1(float x) {
+	const float scale[] = {
+		+24.344885f/6,
+		-58.344885f/6,
+		+67.344885f/6,
+		-27.344885f/6,
+	};
+	float xa = fabs(x);
+	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
+}
