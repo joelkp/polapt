@@ -28,14 +28,24 @@ static inline TEST_T test_sqrt_r1_d4(TEST_T x, double scale_adj[]) {
 	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
 }
 
-/* -0.5, *PI */
+/* 0.0, *1.0 */
 static inline TEST_T test_cosline_jkp(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+1.f * scale_adj[3],
-		-1.f/24 * scale_adj[2],
+		+0.49998307401098157632 * scale_adj[PDIM - 4],
+		+1.57026686101023282838 * scale_adj[PDIM - 3],
+		-2.56836572869766729953 * scale_adj[PDIM - 2],
+		+1.14973477027553139252 * scale_adj[PDIM - 1],
 	};
+	x -= 0.5f;
 	TEST_T x2 = x*x;
-	return x*(scale[0] + x2*(scale[1]));
+	return scale[0] + x*(scale[1] + x2*(scale[2] + x2*scale[3]));
+	//const TEST_T scale[] = {
+	//	+2.f    * scale_adj[PDIM - 3],
+	//	-15.f/8 * scale_adj[PDIM - 2],
+	//	+1.f/2  * scale_adj[PDIM - 1],
+	//};
+	//TEST_T x2 = x*x;
+	//return x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
 /* -0.5, *2.0 */

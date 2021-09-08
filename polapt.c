@@ -53,9 +53,9 @@ static inline float srsf(float x) {
  */
 
 /* What to run? */
-#define TEST_X(x) ((x - 0.5f) * PI)
-#define TEST_Y test_sin_t5
-#define GOOD_Y sin
+#define TEST_X(x) x //((x - 0.5f) * PI)
+#define TEST_Y test_cosline_jkp
+#define GOOD_Y cosline
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
 
@@ -64,7 +64,7 @@ static inline float srsf(float x) {
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
 #define EPSILON 1.e-14
-#define PDIM 3
+#define PDIM 4
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
@@ -494,8 +494,8 @@ static int run_pass(uint32_t n) {
 static void generate_endfitted(void) {
 	//if (selerr_y[0] > EPSILON || selerr_y[TAB_LEN - 1] > EPSILON)
 	// FIXME: deal with both end points...
-	double end1 = selerr_y[TAB_LEN - 1];
-	if (end1 < EPSILON || end1 >= 1.f)
+	double end1 = selerr_y[TAB_LEN - 1], abs_end1 = fabs(end1);
+	if (abs_end1 < EPSILON || abs_end1 >= 1.f)
 		return;
 	printf("(Creating variation for fitted endpoints.)\n");
 	apply_selected(0);
