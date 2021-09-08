@@ -20,6 +20,14 @@
 #include <math.h>
 #define PI 3.14159265358979323846
 
+#define lin(x) x
+#define linf(x) ((float) x)
+#define cosline(x) \
+	(1.f - (cos((x) * PI) + 1.f)*0.5f)
+#define coslinef(x) \
+	(1.f - (cosf((x) * PI) + 1.f)*0.5f)
+
+
 static inline double sqrtp1(double x) {
 	return sqrt(x + 1.0);
 }
@@ -45,9 +53,9 @@ static inline float srsf(float x) {
  */
 
 /* What to run? */
-#define TEST_X(x) ((x - 0.5f) * 2.f)
-#define TEST_Y test_fabs_d16
-#define GOOD_Y fabs
+#define TEST_X(x) ((x - 0.5f) * PI)
+#define TEST_Y test_sin_t7_4v
+#define GOOD_Y sin
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
 
@@ -113,15 +121,10 @@ double selscale_adj[PDIM];
 double trypos[PDIM];
 double selpos[PDIM];
 
-/*
- * For minimizing error at end of curve only.
- */
-static int compare_enderr(double minerr) {
-	uint32_t i = TAB_LEN - 1;
-	double x = 1.f;
+static inline int compare_point(double minerr, uint32_t i) {
+	double x = i * 1.f/(TAB_LEN - 1);
 	double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
 	double abserr = fabs(err);
-	minerr = fabs(minerr);
 	tryerr_y[i] = err;
 	if (abserr > trymaxerr_y)
 		trymaxerr_y = abserr;
@@ -131,21 +134,32 @@ static int compare_enderr(double minerr) {
 }
 
 /*
+ * For minimizing error at end of curve only.
+ */
+static int compare_enderr(double minerr) {
+	int cmp0 = compare_point(minerr, 0);
+	int cmp1 = compare_point(minerr, TAB_LEN - 1);
+	int ret = 1;
+	if (cmp0 <= 0 || cmp1 <= 0) {
+		ret = (cmp0 < 0 || cmp1 < 0) ? -1 : 0;
+	}
+	return ret;
+}
+
+/*
  * For minimizing error all over curve.
  */
 static int compare_maxerr(double minerr) {
-	minerr = fabs(minerr);
+	int ret = 1;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = i * 1.f/end;
-		double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
-		double abserr = fabs(err);
-		tryerr_y[i] = err;
-		if (abserr > trymaxerr_y)
-			trymaxerr_y = abserr;
-		if (abserr > minerr)
-			return -1;
+		int cmp = compare_point(minerr, i);
+		if (cmp <= 0) {
+			if (cmp < 0)
+				return -1;
+			ret = 0;
+		}
 	}
-	return 1;
+	return ret;
 }
 
 /*
@@ -155,25 +169,22 @@ static int compare_maxerr(double minerr) {
  * when the threshold is reached but not exceeded.
  */
 static int compare_maxerr_enderr(double minerr) {
-	minerr = fabs(minerr);
+	int ret = 1;
+	int end0_cmp = compare_point(fabs(selerr_y[0]), 0);
+	int end1_cmp = compare_point(fabs(selerr_y[TAB_LEN - 1]), TAB_LEN - 1);
+	int end_cmp = 1;
+	if (end0_cmp <= 0 || end1_cmp <= 0) {
+		end_cmp = (end0_cmp < 0 || end1_cmp < 0) ? -1 : 0;
+	}
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = i * 1.f/end;
-		double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
-		double abserr = fabs(err);
-		tryerr_y[i] = err;
-		if (abserr > trymaxerr_y)
-			trymaxerr_y = abserr;
-		if (abserr >= minerr) {
-			if (abserr == minerr) {
-				int cmp = compare_enderr(selerr_y[end]);
-				if (cmp > 0)
-					continue;
-				return cmp;
-			}
-			return 0 - (abserr > minerr);
+		int cmp = compare_point(minerr, i);
+		if (cmp <= 0) {
+			if (cmp < 0 || end_cmp < 0)
+				return -1;
+			ret = end_cmp;
 		}
 	}
-	return 1;
+	return ret;
 }
 
 /*
@@ -181,7 +192,13 @@ static int compare_maxerr_enderr(double minerr) {
  * over the rest of the curve secondarily.
  */
 static int compare_enderr_maxerr(double minerr) {
-	if (compare_enderr(selerr_y[TAB_LEN - 1]) < 0)
+	int end0_cmp = compare_point(fabs(selerr_y[0]), 0);
+	int end1_cmp = compare_point(fabs(selerr_y[TAB_LEN - 1]), TAB_LEN - 1);
+	int end_cmp = 1;
+	if (end0_cmp <= 0 || end1_cmp <= 0) {
+		end_cmp = (end0_cmp < 0 || end1_cmp < 0) ? -1 : 0;
+	}
+	if (end_cmp < 0)
 		return -1;
 	return compare_maxerr(minerr);
 }

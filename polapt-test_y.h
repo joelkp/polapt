@@ -28,6 +28,16 @@ static inline TEST_T test_sqrt_r1_d4(TEST_T x, double scale_adj[]) {
 	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
 }
 
+/* -0.5, *PI */
+static inline TEST_T test_cosline_jkp(TEST_T x, double scale_adj[]) {
+	const TEST_T scale[] = {
+		+1.f * scale_adj[3],
+		-1.f/24 * scale_adj[2],
+	};
+	TEST_T x2 = x*x;
+	return x*(scale[0] + x2*(scale[1]));
+}
+
 /* -0.5, *2.0 */
 static inline TEST_T test_fabs_d16(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
@@ -38,5 +48,17 @@ static inline TEST_T test_fabs_d16(TEST_T x, double scale_adj[]) {
 	};
 	TEST_T xp = (x+x - x*fabs(x));
 	xp *= xp;
+	return xp*(scale[0] + xp*(scale[1] + xp*(scale[2] + xp*scale[3])));
+}
+
+/* -0.5, *2.0 */
+static inline TEST_T test_fabs_d12(TEST_T x, double scale_adj[]) {
+	const TEST_T scale[] = {
+		+1.f * scale_adj[0],
+		-1.f * scale_adj[1],
+		+1.f * scale_adj[2],
+		-1.f * scale_adj[3],
+	};
+	TEST_T xp = (3 - 2*fabs(x))*x*x;
 	return xp*(scale[0] + xp*(scale[1] + xp*(scale[2] + xp*scale[3])));
 }
