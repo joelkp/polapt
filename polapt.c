@@ -54,10 +54,16 @@ static inline float srsf(float x) {
 
 /* What to run? */
 #define TEST_X(x) ((x - 0.5f) * PI)
-#define TEST_Y test_sin_t7_4v
+#define TEST_Y test_sin_t5
 #define GOOD_Y sin
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
+
+#define TAB_LEN 1000 //64 //16 //128 //1024
+#define SUB_LEN 10
+#define MAX_ERR 1.f  // large-enough start value to accept any contender
+#define EPSILON 1.e-14
+#define PDIM 3
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
@@ -68,23 +74,23 @@ static inline float srsf(float x) {
 #include "polapt-test_y.h"
 
 /* -0.5, *PI */
-static inline TEST_T test_sin_t7_3v(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sin_t5(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		-1.f/6 * scale_adj[0],
-		+1.f/120 * scale_adj[1],
-		-1.f/5040 * scale_adj[2],
+		+1.f     * scale_adj[PDIM - 3],
+		-1.f/6   * scale_adj[PDIM - 2],
+		+1.f/120 * scale_adj[PDIM - 1],
 	};
 	TEST_T x2 = x*x;
-	return x + x*x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
+	return x*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
 /* -0.5, *PI */
-static inline TEST_T test_sin_t7_4v(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sin_t7(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+1.f * scale_adj[0],
-		-1.f/6 * scale_adj[1],
-		+1.f/120 * scale_adj[2],
-		-1.f/5040 * scale_adj[3],
+		+1.f      * scale_adj[PDIM - 4],
+		-1.f/6    * scale_adj[PDIM - 3],
+		+1.f/120  * scale_adj[PDIM - 2],
+		-1.f/5040 * scale_adj[PDIM - 1],
 	};
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
@@ -100,12 +106,6 @@ static inline TEST_T test_sqrtp1_t4(TEST_T x, double scale_adj[]) {
 	};
 	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
 }
-
-#define TAB_LEN 1000 //64 //16 //128 //1024
-#define SUB_LEN 10
-#define MAX_ERR 1.f  // large-enough start value to accept any contender
-#define EPSILON 1.e-14
-#define PDIM 4
 
 TEST_T good_y[TAB_LEN];
 double tryerr_y[TAB_LEN];
@@ -134,7 +134,7 @@ static inline int compare_point(double minerr, uint32_t i) {
 }
 
 /*
- * For minimizing error at end of curve only.
+ * For minimizing error at the ends of the curve only.
  */
 static int compare_enderr(double minerr) {
 	int cmp0 = compare_point(minerr, 0);
@@ -165,7 +165,7 @@ static int compare_maxerr(double minerr) {
 /*
  * For minimizing error all over curve.
  *
- * Uses compare_enderr() as tie-breaker
+ * Compares endpoints for current best selection as tie-breaker
  * when the threshold is reached but not exceeded.
  */
 static int compare_maxerr_enderr(double minerr) {
@@ -192,13 +192,9 @@ static int compare_maxerr_enderr(double minerr) {
  * over the rest of the curve secondarily.
  */
 static int compare_enderr_maxerr(double minerr) {
-	int end0_cmp = compare_point(fabs(selerr_y[0]), 0);
-	int end1_cmp = compare_point(fabs(selerr_y[TAB_LEN - 1]), TAB_LEN - 1);
-	int end_cmp = 1;
-	if (end0_cmp <= 0 || end1_cmp <= 0) {
-		end_cmp = (end0_cmp < 0 || end1_cmp < 0) ? -1 : 0;
-	}
-	if (end_cmp < 0)
+	int end0 = compare_point(fabs(selerr_y[0]), 0);
+	int end1 = compare_point(fabs(selerr_y[TAB_LEN - 1]), TAB_LEN - 1);
+	if (end0 < 0 || end1 < 0)
 		return -1;
 	return compare_maxerr(minerr);
 }
