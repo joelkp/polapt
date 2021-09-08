@@ -19,14 +19,14 @@
 #include <stdio.h>
 #include <math.h>
 #define PI 3.14159265358979323846
+#define END_SHIFT(x) 1.f/(1.f + (x))
 
 #define lin(x) x
 #define linf(x) ((float) x)
-#define cosline(x) \
+#define cosramp(x) \
 	(1.f - (cos((x) * PI) + 1.f)*0.5f)
-#define coslinef(x) \
+#define cosrampf(x) \
 	(1.f - (cosf((x) * PI) + 1.f)*0.5f)
-
 
 static inline double sqrtp1(double x) {
 	return sqrt(x + 1.0);
@@ -54,17 +54,18 @@ static inline float srsf(float x) {
 
 /* What to run? */
 #define TEST_X(x) x //((x - 0.5f) * PI)
-#define TEST_Y test_cosline_jkp
-#define GOOD_Y cosline
+#define TEST_Y test_cosramp_jkp
+#define GOOD_Y cosramp
 #define TEST_T double
 #define TEST_C compare_maxerr_enderr
+#define ENDS_Y END_SHIFT(-0.5f) // compensation for extra offset goes here
 
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
 #define EPSILON 1.e-14
-#define PDIM 4
+#define PDIM 3
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
@@ -499,7 +500,7 @@ static void generate_endfitted(void) {
 		return;
 	printf("(Creating variation for fitted endpoints.)\n");
 	apply_selected(0);
-	double scale1 = 1.f / (1.f + end1);
+	double scale1 = END_SHIFT(end1 * ENDS_Y);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		scale_adj[j] *= scale1;
 	}
