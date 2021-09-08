@@ -62,11 +62,15 @@ static inline float srsf(float x) {
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define SUB_LEN 10
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
+#define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
 #define EPSILON 1.e-14
 #define PDIM 3
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
+
+/* Adjust result to primarily minimize error at endpoints? */
+#define FIT_ENDPOINTS   1
 
 /* Produce file suitable for gnuplot? */
 #define WRITE_PLOT_FILE 1
@@ -165,17 +169,12 @@ static int compare_maxerr(double minerr) {
 /*
  * For minimizing error all over curve.
  *
- * Compares endpoints for current best selection as tie-breaker
+ * Compares endpoints with bias as tie-breaker
  * when the threshold is reached but not exceeded.
  */
 static int compare_maxerr_enderr(double minerr) {
 	int ret = 1;
-	int end0_cmp = compare_point(fabs(selerr_y[0]), 0);
-	int end1_cmp = compare_point(fabs(selerr_y[TAB_LEN - 1]), TAB_LEN - 1);
-	int end_cmp = 1;
-	if (end0_cmp <= 0 || end1_cmp <= 0) {
-		end_cmp = (end0_cmp < 0 || end1_cmp < 0) ? -1 : 0;
-	}
+	int end_cmp = compare_enderr(minerr * ERR_BIAS);
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		int cmp = compare_point(minerr, i);
 		if (cmp <= 0) {
@@ -192,9 +191,8 @@ static int compare_maxerr_enderr(double minerr) {
  * over the rest of the curve secondarily.
  */
 static int compare_enderr_maxerr(double minerr) {
-	int end0 = compare_point(fabs(selerr_y[0]), 0);
-	int end1 = compare_point(fabs(selerr_y[TAB_LEN - 1]), TAB_LEN - 1);
-	if (end0 < 0 || end1 < 0)
+	int end_cmp = compare_enderr(minerr * ERR_BIAS);
+	if (end_cmp < 0)
 		return -1;
 	return compare_maxerr(minerr);
 }
@@ -243,8 +241,9 @@ static void print_report(void) {
 /*
  * Makes result of previous pass apply to next pass.
  */
-static void apply_selected(void) {
-	printf("(Applying selected coefficients.)\n");
+static void apply_selected(int msg) {
+	if (msg)
+		printf("(Applying selected coefficients.)\n");
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		scale_adj[j] = selscale_adj[j];
 	}
@@ -475,7 +474,7 @@ static int run_pass(uint32_t n) {
 	for (uint32_t j = 0; j < PDIM; ++j)
 		set_candidate(j, 1.f);
 	if (n == 0) {
-		if (try_candidate(compare_maxerr, minmaxerr_y) >= 0) {
+		if (try_candidate(TEST_C, MAX_ERR) >= 0) {
 			select_candidate();
 			found = 1;
 		}
@@ -486,6 +485,26 @@ static int run_pass(uint32_t n) {
 	if (found)
 		print_report();
 	return found;
+}
+
+/*
+ * Uses end point error measure for current pick
+ * to minimize end error at the cost of overall accuracy.
+ */
+static void generate_endfitted(void) {
+	//if (selerr_y[0] > EPSILON || selerr_y[TAB_LEN - 1] > EPSILON)
+	// FIXME: deal with both end points...
+	double end1 = selerr_y[TAB_LEN - 1];
+	if (end1 < EPSILON || end1 >= 1.f)
+		return;
+	printf("(Creating variation for fitted endpoints.)\n");
+	apply_selected(0);
+	double scale1 = 1.f / (1.f + end1);
+	for (uint32_t j = 0; j < PDIM; ++j) {
+		scale_adj[j] *= scale1;
+	}
+	minmaxerr_y = MAX_ERR;
+	run_pass(0);
 }
 
 int main(void) {
@@ -504,8 +523,11 @@ int main(void) {
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
 //		if (n < PDIM)
-//			apply_selected();
+//			apply_selected(1);
 	}
+# if FIT_ENDPOINTS
+	generate_endfitted();
+# endif
 #endif
 #if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
