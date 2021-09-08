@@ -31,20 +31,22 @@ static inline TEST_T test_sqrt_r1_d4(TEST_T x, double scale_adj[]) {
 /* 0.0, *1.0 */
 static inline TEST_T test_cosramp_jkp(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+3.f/2 * scale_adj[PDIM - 3],
-		-5.f/2 * scale_adj[PDIM - 2],
-		+4.f/2 * scale_adj[PDIM - 1],
+		+118.f/75 * scale_adj[0],
+		-196.f/75 * scale_adj[1],
+		+88.0f/75 * scale_adj[2],
 	};
 	x -= 0.5f;
 	TEST_T x2 = x*x;
 	return 0.5f + x*(scale[0] + x2*(scale[1] + x2*scale[2]));
-	//const TEST_T scale[] = {
-	//	+2.f    * scale_adj[PDIM - 3],
-	//	-15.f/8 * scale_adj[PDIM - 2],
-	//	+1.f/2  * scale_adj[PDIM - 1],
-	//};
-	//TEST_T x2 = x*x;
-	//return x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
+#if 0 /* version using a cos-style polynomial, worse for this use */
+	const TEST_T scale[] = {
+		+2.f    * scale_adj[0],
+		-15.f/8 * scale_adj[1],
+		+1.f/2  * scale_adj[2],
+	};
+	TEST_T x2 = x*x;
+	return x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
+#endif
 }
 
 /* -0.5, *2.0 */

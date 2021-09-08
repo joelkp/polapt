@@ -65,7 +65,7 @@ static inline float srsf(float x) {
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
 #define EPSILON 1.e-14
-#define PDIM 3
+#define PDIM 3       // this also limits which test functions are usable
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
@@ -81,9 +81,9 @@ static inline float srsf(float x) {
 /* -0.5, *PI */
 static inline TEST_T test_sin_t5(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+1.f     * scale_adj[PDIM - 3],
-		-1.f/6   * scale_adj[PDIM - 2],
-		+1.f/120 * scale_adj[PDIM - 1],
+		+1.f     * scale_adj[0],
+		-1.f/6   * scale_adj[1],
+		+1.f/120 * scale_adj[2],
 	};
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*scale[2]));
@@ -92,10 +92,10 @@ static inline TEST_T test_sin_t5(TEST_T x, double scale_adj[]) {
 /* -0.5, *PI */
 static inline TEST_T test_sin_t7(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+1.f      * scale_adj[PDIM - 4],
-		-1.f/6    * scale_adj[PDIM - 3],
-		+1.f/120  * scale_adj[PDIM - 2],
-		-1.f/5040 * scale_adj[PDIM - 1],
+		+1.f      * scale_adj[0],
+		-1.f/6    * scale_adj[1],
+		+1.f/120  * scale_adj[2],
+		-1.f/5040 * scale_adj[3],
 	};
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
@@ -104,9 +104,9 @@ static inline TEST_T test_sin_t7(TEST_T x, double scale_adj[]) {
 /* -0.5, *2.0 */
 static inline TEST_T test_sqrtp1_t4(TEST_T x, double scale_adj[]) {
 	const TEST_T scale[] = {
-		+1.f/2 * scale_adj[0],
-		-1.f/8 * scale_adj[1],
-		+1.f/16 * scale_adj[2],
+		+1.f/2   * scale_adj[0],
+		-1.f/8   * scale_adj[1],
+		+1.f/16  * scale_adj[2],
 		-5.f/128 * scale_adj[3],
 	};
 	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
