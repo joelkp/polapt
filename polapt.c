@@ -57,7 +57,7 @@ static inline float srsf(float x) {
 #define TEST_Y test_cosramp_jkp
 #define GOOD_Y cosramp
 #define TEST_T double
-#define TEST_C compare_maxerr_enderr
+#define TEST_C compare_maxerr
 #define ENDS_Y END_SHIFT(-0.5f) // compensation for extra offset goes here
 
 #define TAB_LEN 1000 //64 //16 //128 //1024
@@ -162,26 +162,6 @@ static int compare_maxerr(double minerr) {
 			if (cmp < 0)
 				return -1;
 			ret = 0;
-		}
-	}
-	return ret;
-}
-
-/*
- * For minimizing error all over curve.
- *
- * Compares endpoints with bias as tie-breaker
- * when the threshold is reached but not exceeded.
- */
-static int compare_maxerr_enderr(double minerr) {
-	int ret = 1;
-	int end_cmp = compare_enderr(minerr * ERR_BIAS);
-	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		int cmp = compare_point(minerr, i);
-		if (cmp <= 0) {
-			if (cmp < 0 || end_cmp < 0)
-				return -1;
-			ret = end_cmp;
 		}
 	}
 	return ret;
