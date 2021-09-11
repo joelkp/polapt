@@ -53,15 +53,14 @@ static inline float srsf(float x) {
  */
 
 /* What to run? */
-#define TEST_X(x) x //((x - 0.5f) * PI)
-#define TEST_Y test_cosramp_jkp
-#define GOOD_Y cosramp
+#define TEST_X(x) ((x - 0.5f) * PI)
+#define TEST_Y test_sin_t5
+#define GOOD_Y sin
 #define TEST_T double
 #define TEST_C compare_maxerr
-#define ENDS_Y END_SHIFT(-0.5f) // compensation for extra offset goes here
+#define ENDS_Y END_SHIFT(0.0f) // compensation for extra offset goes here
 
 #define TAB_LEN 1000 //64 //16 //128 //1024
-#define SUB_LEN 10
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
 #define EPSILON 1.e-14
