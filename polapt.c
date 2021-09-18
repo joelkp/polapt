@@ -56,14 +56,14 @@ static inline float srsf(float x) {
 #define TEST_X(x) ((x - 0.5f) * PI)
 #define TEST_Y test_sin_t5
 #define GOOD_Y sin
-#define TEST_T double
+#define TEST_T long double
 #define TEST_C compare_maxerr
 #define ENDS_Y END_SHIFT(0.0f) // compensation for extra offset goes here
 
 #define TAB_LEN 1000 //64 //16 //128 //1024
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
-#define EPSILON 1.e-14
+#define EPSILON 1.e-19
 #define PDIM 3       // this also limits which test functions are usable
 
 /* Test more than starting point? */
@@ -78,7 +78,7 @@ static inline float srsf(float x) {
 #include "polapt-test_y.h"
 
 /* -0.5, *PI */
-static inline TEST_T test_sin_t5(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sin_t5(TEST_T x, long double scale_adj[]) {
 	const TEST_T scale[] = {
 		+1.f     * scale_adj[0],
 		-1.f/6   * scale_adj[1],
@@ -89,7 +89,7 @@ static inline TEST_T test_sin_t5(TEST_T x, double scale_adj[]) {
 }
 
 /* -0.5, *PI */
-static inline TEST_T test_sin_t7(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sin_t7(TEST_T x, long double scale_adj[]) {
 	const TEST_T scale[] = {
 		+1.f      * scale_adj[0],
 		-1.f/6    * scale_adj[1],
@@ -101,7 +101,7 @@ static inline TEST_T test_sin_t7(TEST_T x, double scale_adj[]) {
 }
 
 /* -0.5, *2.0 */
-static inline TEST_T test_sqrtp1_t4(TEST_T x, double scale_adj[]) {
+static inline TEST_T test_sqrtp1_t4(TEST_T x, long double scale_adj[]) {
 	const TEST_T scale[] = {
 		+1.f/2   * scale_adj[0],
 		-1.f/8   * scale_adj[1],
@@ -112,23 +112,23 @@ static inline TEST_T test_sqrtp1_t4(TEST_T x, double scale_adj[]) {
 }
 
 TEST_T good_y[TAB_LEN];
-double tryerr_y[TAB_LEN];
-double selerr_y[TAB_LEN];
-double minmaxerr_y = MAX_ERR;
-double trymaxerr_y = MAX_ERR;
-double stageminmaxerr_y[PDIM];
+TEST_T tryerr_y[TAB_LEN];
+TEST_T selerr_y[TAB_LEN];
+TEST_T minmaxerr_y = MAX_ERR;
+TEST_T trymaxerr_y = MAX_ERR;
+TEST_T stageminmaxerr_y[PDIM];
 int stageresult[PDIM];
 
-double scale_adj[PDIM];
-double tryscale_adj[PDIM];
-double selscale_adj[PDIM];
-double trypos[PDIM];
-double selpos[PDIM];
+long double scale_adj[PDIM];
+long double tryscale_adj[PDIM];
+long double selscale_adj[PDIM];
+long double trypos[PDIM];
+long double selpos[PDIM];
 
-static inline int compare_point(double minerr, uint32_t i) {
-	double x = i * 1.f/(TAB_LEN - 1);
-	double err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
-	double abserr = fabs(err);
+static inline int compare_point(TEST_T minerr, uint32_t i) {
+	TEST_T x = i * 1.f/(TAB_LEN - 1);
+	TEST_T err = TEST_Y(TEST_X(x), tryscale_adj) - good_y[i];
+	TEST_T abserr = fabsl(err);
 	tryerr_y[i] = err;
 	if (abserr > trymaxerr_y)
 		trymaxerr_y = abserr;
@@ -140,7 +140,7 @@ static inline int compare_point(double minerr, uint32_t i) {
 /*
  * For minimizing error at the ends of the curve only.
  */
-static int compare_enderr(double minerr) {
+static int compare_enderr(TEST_T minerr) {
 	int cmp0 = compare_point(minerr, 0);
 	int cmp1 = compare_point(minerr, TAB_LEN - 1);
 	int ret = 1;
@@ -153,7 +153,7 @@ static int compare_enderr(double minerr) {
 /*
  * For minimizing error all over curve.
  */
-static int compare_maxerr(double minerr) {
+static int compare_maxerr(TEST_T minerr) {
 	int ret = 1;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
 		int cmp = compare_point(minerr, i);
@@ -170,7 +170,7 @@ static int compare_maxerr(double minerr) {
  * For minimizing error at the end of the curve primarily,
  * over the rest of the curve secondarily.
  */
-static int compare_enderr_maxerr(double minerr) {
+static int compare_enderr_maxerr(TEST_T minerr) {
 	int end_cmp = compare_enderr(minerr * ERR_BIAS);
 	if (end_cmp < 0)
 		return -1;
@@ -182,11 +182,11 @@ static inline void begin_stage(uint32_t n) {
 	stageresult[n] = 0;
 }
 
-static inline void set_candidate(uint32_t n, double pos) {
+static inline void set_candidate(uint32_t n, long double pos) {
 	trypos[n] = pos;
 }
 
-static int try_candidate(int (*compare)(double minerr), double minerr) {
+static int try_candidate(int (*compare)(TEST_T minerr), TEST_T minerr) {
 	trymaxerr_y = 0.f;
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		tryscale_adj[j] = scale_adj[j] * trypos[j];
@@ -208,11 +208,11 @@ static void select_candidate(void) {
 }
 
 static void print_report(void) {
-	printf("Max.err. %.11e\tEnd.err. %.11e\n",
+	printf("Max.err. %.11Le\tEnd.err. %.11Le\n",
 			minmaxerr_y, selerr_y[TAB_LEN - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
-		printf("%c==%.20f\t(%.14f * %.14f)\n",
+		printf("%c==%.20Lf\t(%.14Lf * %.14Lf)\n",
 				label, selscale_adj[j],
 				scale_adj[j], selpos[j]);
 	}
@@ -229,12 +229,12 @@ static void apply_selected(int msg) {
 	}
 }
 
-static inline double moved_pos(double from, double to) {
+static inline long double moved_pos(long double from, long double to) {
 	return (from + to) * 0.5;
 }
 
 uint32_t bench_count, sub_bench_count;
-static double run_one(uint32_t n, double pos) {
+static TEST_T run_one(uint32_t n, long double pos) {
 	++bench_count;
 	++sub_bench_count;
 	set_candidate(n, pos);
@@ -249,11 +249,11 @@ static double run_one(uint32_t n, double pos) {
  * halving the size of steps to take within the range until a number is
  * chosen. May make roughly a hundred tests, before picking the number.
  */
-static double run_subdivide(uint32_t n) {
-	double lpos, mpos, upos;
-	double lerr, merr, uerr;
-	double mlpos, mupos;
-	double mlerr, muerr;
+static TEST_T run_subdivide(uint32_t n) {
+	long double lpos, mpos, upos;
+	long double lerr, merr, uerr;
+	long double mlpos, mupos;
+	long double mlerr, muerr;
 	sub_bench_count = 0;
 	lpos = .5f;
 	mpos = 1.f;
@@ -338,11 +338,11 @@ static double run_subdivide(uint32_t n) {
 	return stageminmaxerr_y[n];
 }
 
-static double recurse_subdivide(uint32_t m, uint32_t n);
+static TEST_T recurse_subdivide(uint32_t m, uint32_t n);
 
-static double recurse_one(uint32_t m, uint32_t n, double pos) {
+static TEST_T recurse_one(uint32_t m, uint32_t n, long double pos) {
 	uint32_t j = PDIM - n + m;
-	double err;
+	TEST_T err;
 	set_candidate(j, pos);
 	err = recurse_subdivide(m - 1, n);
 	if (stageresult[j - 1])
@@ -352,7 +352,7 @@ static double recurse_one(uint32_t m, uint32_t n, double pos) {
 	return err;
 }
 
-static double recurse_subdivide(uint32_t m, uint32_t n) {
+static TEST_T recurse_subdivide(uint32_t m, uint32_t n) {
 	uint32_t j = PDIM - n + m;
 	begin_stage(j);
 	if (m == 0) {
@@ -363,10 +363,10 @@ static double recurse_subdivide(uint32_t m, uint32_t n) {
 	 * Subdivision testing algorithm, as in innermost
 	 * search except adapted for this recursive step.
 	 */
-	double lpos, mpos, upos;
-	double lerr, merr, uerr;
-	double mlpos, mupos;
-	double mlerr, muerr;
+	long double lpos, mpos, upos;
+	long double lerr, merr, uerr;
+	long double mlpos, mupos;
+	long double mlerr, muerr;
 	lpos = .5f;
 	mpos = 1.f;
 	upos = 2.f;
@@ -474,12 +474,12 @@ static int run_pass(uint32_t n) {
 static void generate_endfitted(void) {
 	//if (selerr_y[0] > EPSILON || selerr_y[TAB_LEN - 1] > EPSILON)
 	// FIXME: deal with both end points...
-	double end1 = selerr_y[TAB_LEN - 1], abs_end1 = fabs(end1);
+	TEST_T end1 = selerr_y[TAB_LEN - 1], abs_end1 = fabsl(end1);
 	if (abs_end1 < EPSILON || abs_end1 >= 1.f)
 		return;
 	printf("(Creating variation for fitted endpoints.)\n");
 	apply_selected(0);
-	double scale1 = END_SHIFT(end1 * ENDS_Y);
+	long double scale1 = END_SHIFT(end1 * ENDS_Y);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		scale_adj[j] *= scale1;
 	}
@@ -494,7 +494,7 @@ int main(void) {
 	for (uint32_t j = 0; j < PDIM; ++j)
 		scale_adj[j] = 1.f;
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = i * 1.f/end;
+		TEST_T x = i * 1.f/end;
 		good_y[i] = GOOD_Y(TEST_X(x));
 		selerr_y[i] = MAX_ERR;
 	}
@@ -502,8 +502,8 @@ int main(void) {
 #if RUN_TESTS
 	for (uint32_t n = 1; n <= PDIM; ++n) {
 		run_pass(n);
-//		if (n < PDIM)
-//			apply_selected(1);
+		if (n < PDIM)
+			apply_selected(1);
 	}
 # if FIT_ENDPOINTS
 	generate_endfitted();
@@ -511,8 +511,8 @@ int main(void) {
 #endif
 #if WRITE_PLOT_FILE
 	for (uint32_t i = 0, end = TAB_LEN - 1; i <= end; ++i) {
-		double x = i * 1.f/end;
-		fprintf(f, "%.11f\t%.11f\n", TEST_X(x), selerr_y[i]);
+		TEST_T x = i * 1.f/end;
+		fprintf(f, "%.11Lf\t%.11Lf\n", TEST_X(x), selerr_y[i]);
 	}
 	fclose(f);
 #endif
