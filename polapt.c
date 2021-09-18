@@ -54,7 +54,7 @@ static inline float srsf(float x) {
 
 /* What to run? */
 #define TEST_X(x) ((x - 0.5f) * PI)
-#define TEST_Y test_sin_t5
+#define TEST_Y test_sin_t7
 #define GOOD_Y sin
 #define TEST_T long double
 #define TEST_C compare_maxerr
@@ -64,7 +64,7 @@ static inline float srsf(float x) {
 #define MAX_ERR 1.f  // large-enough start value to accept any contender
 #define ERR_BIAS 1.f // value between 0 and 1 to give weighed preference
 #define EPSILON 1.e-19
-#define PDIM 3       // this also limits which test functions are usable
+#define PDIM 4       // this also limits which test functions are usable
 
 /* Test more than starting point? */
 #define RUN_TESTS       1
