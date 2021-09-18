@@ -230,7 +230,7 @@ static void apply_selected(int msg) {
 }
 
 static inline long double moved_pos(long double from, long double to) {
-	return (from + to) * 0.5;
+	return (from + to + to + to) * 0.25;
 }
 
 uint32_t bench_count, sub_bench_count;
