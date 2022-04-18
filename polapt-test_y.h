@@ -15,6 +15,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* Get array of per-dimension TEST_T offset by number of dimensions skipped. */
+#define ARR_DIMOFFSET(arr, used) \
+	((arr) + sizeof(arr)/sizeof(TEST_T) - (used))
+
 /* -0.0, *1.0 */
 static inline TEST_T test_sqrt_r1_d4(TEST_T x, long double scale_adj[]) {
 	TEST_T scale[] = {
@@ -24,7 +28,7 @@ static inline TEST_T test_sqrt_r1_d4(TEST_T x, long double scale_adj[]) {
 		-27.344885f/6,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	TEST_T x2 = x*x;
 	TEST_T xa = fabsl(x);
 	return x*(scale[0] + xa*(scale[1] + xa*(scale[2] + xa*scale[3])));
@@ -38,7 +42,7 @@ static inline TEST_T test_cosramp_jkp(TEST_T x, long double scale_adj[]) {
 		+88.0f/75,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	x -= 0.5f;
 	TEST_T x2 = x*x;
 	return 0.5f + x*(scale[0] + x2*(scale[1] + x2*scale[2]));
@@ -49,7 +53,7 @@ static inline TEST_T test_cosramp_jkp(TEST_T x, long double scale_adj[]) {
 		+1.f/2,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	TEST_T x2 = x*x;
 	return x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
 #endif
@@ -64,7 +68,7 @@ static inline TEST_T test_fabs_d16(TEST_T x, long double scale_adj[]) {
 		-1.f,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	TEST_T xp = (x+x - x*fabsl(x));
 	xp *= xp;
 	return xp*(scale[0] + xp*(scale[1] + xp*(scale[2] + xp*scale[3])));
@@ -79,7 +83,7 @@ static inline TEST_T test_fabs_d12(TEST_T x, long double scale_adj[]) {
 		-1.f,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	TEST_T xp = (3 - 2*fabsl(x))*x*x;
 	return xp*(scale[0] + xp*(scale[1] + xp*(scale[2] + xp*scale[3])));
 }

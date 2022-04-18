@@ -85,7 +85,7 @@ static inline TEST_T test_sin_t5(TEST_T x, long double scale_adj[]) {
 		+1.f/120,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
@@ -99,7 +99,7 @@ static inline TEST_T test_sin_t7(TEST_T x, long double scale_adj[]) {
 		-1.f/5040,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
 }
@@ -113,7 +113,7 @@ static inline TEST_T test_sqrtp1_t4(TEST_T x, long double scale_adj[]) {
 		-5.f/128,
 	};
 	for (size_t i = 0; i < PDIM; ++i)
-		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
+		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
 	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
 }
 
@@ -476,6 +476,10 @@ static int run_pass(uint32_t n) {
 /*
  * Uses end point error measure for current pick
  * to minimize end error at the cost of overall accuracy.
+ *
+ * Only works if scale_adj[] is applied to the whole
+ * polynomial, for example when PDIM is maximally large
+ * to produce a minimax approximation beforehand.
  */
 static void generate_endfitted(void) {
 	//if (selerr_y[0] > EPSILON || selerr_y[TAB_LEN - 1] > EPSILON)
