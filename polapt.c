@@ -1,5 +1,5 @@
 /* Polynomial approximation optimizer.
- * Copyright (c) 2021 Joel K. Pettersson
+ * Copyright (c) 2021-2022 Joel K. Pettersson
  * <joelkpettersson@gmail.com>.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -79,35 +79,41 @@ static inline float srsf(float x) {
 
 /* -0.5, *PI */
 static inline TEST_T test_sin_t5(TEST_T x, long double scale_adj[]) {
-	const TEST_T scale[] = {
-		+1.f     * scale_adj[0],
-		-1.f/6   * scale_adj[1],
-		+1.f/120 * scale_adj[2],
+	TEST_T scale[] = {
+		+1.f,
+		-1.f/6,
+		+1.f/120,
 	};
+	for (size_t i = 0; i < PDIM; ++i)
+		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*scale[2]));
 }
 
 /* -0.5, *PI */
 static inline TEST_T test_sin_t7(TEST_T x, long double scale_adj[]) {
-	const TEST_T scale[] = {
-		+1.f      * scale_adj[0],
-		-1.f/6    * scale_adj[1],
-		+1.f/120  * scale_adj[2],
-		-1.f/5040 * scale_adj[3],
+	TEST_T scale[] = {
+		+1.f,
+		-1.f/6,
+		+1.f/120,
+		-1.f/5040,
 	};
+	for (size_t i = 0; i < PDIM; ++i)
+		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
 	TEST_T x2 = x*x;
 	return x*(scale[0] + x2*(scale[1] + x2*(scale[2] + x2*scale[3])));
 }
 
 /* -0.5, *2.0 */
 static inline TEST_T test_sqrtp1_t4(TEST_T x, long double scale_adj[]) {
-	const TEST_T scale[] = {
-		+1.f/2   * scale_adj[0],
-		-1.f/8   * scale_adj[1],
-		+1.f/16  * scale_adj[2],
-		-5.f/128 * scale_adj[3],
+	TEST_T scale[] = {
+		+1.f/2,
+		-1.f/8,
+		+1.f/16,
+		-5.f/128,
 	};
+	for (size_t i = 0; i < PDIM; ++i)
+		scale[i + sizeof(scale)/sizeof(TEST_T) - PDIM] *= scale_adj[i];
 	return 1. + x*(scale[0] + x*(scale[1] + x*(scale[2] + x*scale[3])));
 }
 
