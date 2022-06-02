@@ -218,7 +218,7 @@ static void print_report(void) {
 			minmaxerr_y, selerr_y[TAB_LEN - 1]);
 	for (uint32_t j = 0; j < PDIM; ++j) {
 		char label = 'A' + j;
-		printf("%c==%.20Lf\t(%.14Lf * %.14Lf)\n",
+		printf("%c==%.32Lf\t(%.12Lf * %.12Lf)\n",
 				label, selscale_adj[j],
 				scale_adj[j], selpos[j]);
 	}

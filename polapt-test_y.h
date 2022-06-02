@@ -46,17 +46,6 @@ static inline TEST_T test_cosramp_jkp(TEST_T x, long double scale_adj[]) {
 	x -= 0.5f;
 	TEST_T x2 = x*x;
 	return 0.5f + x*(scale[0] + x2*(scale[1] + x2*scale[2]));
-#if 0 /* version using a cos-style polynomial, worse for this use */
-	TEST_T scale[] = {
-		+2.f,
-		-15.f/8,
-		+1.f/2,
-	};
-	for (size_t i = 0; i < PDIM; ++i)
-		ARR_DIMOFFSET(scale, PDIM)[i] *= scale_adj[i];
-	TEST_T x2 = x*x;
-	return x2*(scale[0] + x2*(scale[1] + x2*scale[2]));
-#endif
 }
 
 /* -0.5, *2.0 */
