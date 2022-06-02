@@ -35,7 +35,7 @@ static inline TEST_T test_sqrt_r1_d4(TEST_T x, long double scale_adj[]) {
 }
 
 /* 0.0, *1.0 */
-static inline TEST_T test_cosramp_jkp(TEST_T x, long double scale_adj[]) {
+static inline TEST_T test_sinramp_jkp(TEST_T x, long double scale_adj[]) {
 	TEST_T scale[] = {
 		+118.f/75,
 		-196.f/75,

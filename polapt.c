@@ -23,9 +23,9 @@
 
 #define lin(x) x
 #define linf(x) ((float) x)
-#define cosramp(x) \
+#define sinramp(x) \
 	(1.f - (cos((x) * PI) + 1.f)*0.5f)
-#define cosrampf(x) \
+#define sinrampf(x) \
 	(1.f - (cosf((x) * PI) + 1.f)*0.5f)
 
 static inline double sqrtp1(double x) {
